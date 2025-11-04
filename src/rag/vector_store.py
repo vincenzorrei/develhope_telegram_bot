@@ -290,6 +290,7 @@ class VectorStoreManager:
                 {
                     "doc_id": "doc_123",
                     "source": "example.pdf",
+                    "summary": "Guida Python - variabili, loop, funzioni",
                     "num_chunks": 10,
                     "timestamp": "2025-01-04T...",
                     "pages": [1, 2, 3]
@@ -323,6 +324,7 @@ class VectorStoreManager:
                     docs_dict[doc_id] = {
                         "doc_id": doc_id,
                         "source": metadata.get('source', 'Unknown'),
+                        "summary": metadata.get('summary', 'No summary available'),
                         "num_chunks": 0,
                         "timestamp": metadata.get('timestamp', 'N/A'),
                         "pages": set()

@@ -227,6 +227,53 @@ class LangChainEngine:
 
         return tools
 
+    def _build_documents_context(self) -> str:
+        """
+        Costruisce sezione DOCUMENTI DISPONIBILI per system prompt.
+
+        Questa sezione fornisce all'agent visibilità sui documenti
+        caricati, aiutandolo a decidere quando usare il RAG tool.
+
+        Returns:
+            Stringa formattata con lista documenti e sommari
+
+        Example output:
+            DOCUMENTI DISPONIBILI NEL DATABASE:
+            - doc_abc123: "Guida Python - variabili, loop, funzioni"
+            - doc_def456: "Introduzione n8n - workflow automation"
+        """
+        try:
+            # Ottieni lista documenti dal vector store
+            documents = self.vector_store.list_all_documents()
+
+            if not documents:
+                return "\nNESSUN DOCUMENTO CARICATO: Il database è vuoto.\n"
+
+            # Costruisci sezione formattata
+            context = "\n" + "="*60 + "\n"
+            context += "DOCUMENTI DISPONIBILI NEL DATABASE:\n"
+            context += "="*60 + "\n"
+
+            for doc in documents:
+                doc_id = doc.get('doc_id', 'unknown')
+                source = doc.get('source', 'Unknown')
+                summary = doc.get('summary', 'No summary')
+                num_chunks = doc.get('num_chunks', 0)
+
+                context += f"📄 {source} (ID: {doc_id})\n"
+                context += f"   Contenuto: {summary}\n"
+                context += f"   Chunks: {num_chunks}\n\n"
+
+            context += "="*60 + "\n"
+            context += "IMPORTANTE: Usa il tool 'ricerca_documenti' quando l'utente fa domande correlate a questi documenti!\n"
+            context += "="*60 + "\n"
+
+            return context
+
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to build documents context: {e}")
+            return "\n⚠️  Errore recupero documenti disponibili.\n"
+
     def _setup_agent(self) -> AgentExecutor:
         """
         Setup agent usando ReAct pattern.
@@ -261,19 +308,25 @@ class LangChainEngine:
             # Modifichiamo il template per includere il system prompt
             original_template = react_prompt.template
 
+            # Costruisci system prompt con documenti disponibili
+            documents_context = self._build_documents_context()
+            full_system_prompt = prompts.SYSTEM_PROMPT + documents_context
+
             # Prepend system prompt al template esistente
-            enhanced_template = prompts.SYSTEM_PROMPT + "\n\n" + original_template
+            enhanced_template = full_system_prompt + "\n\n" + original_template
             react_prompt.template = enhanced_template
 
-            logger.info("      [OK] Injected custom SYSTEM_PROMPT into agent")
+            logger.info("      [OK] Injected custom SYSTEM_PROMPT with documents context into agent")
 
         except Exception as e:
             logger.error(f"      [ERROR] Failed to load prompt from hub: {e}")
             # Fallback: usa prompt basico
             from langchain.prompts import PromptTemplate
+            documents_context = self._build_documents_context()
+            full_system_prompt = prompts.SYSTEM_PROMPT + documents_context
             react_prompt = PromptTemplate(
                 input_variables=["chat_history", "input", "agent_scratchpad"],
-                template=prompts.SYSTEM_PROMPT + "\n\n{input}\n\n{agent_scratchpad}"
+                template=full_system_prompt + "\n\n{input}\n\n{agent_scratchpad}"
             )
 
         # ========================================

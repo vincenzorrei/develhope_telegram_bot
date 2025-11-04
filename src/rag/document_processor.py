@@ -25,7 +25,10 @@ from docx import Document
 # LangChain text splitters
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from config import rag_config, paths_config
+# OpenAI for summary generation
+from openai import OpenAI
+
+from config import rag_config, paths_config, api_keys
 from src.utils.logger import get_logger
 from src.utils.helpers import (
     extract_file_extension,
@@ -94,6 +97,66 @@ class DocumentProcessor:
             separators=["\n\n", "\n", ". ", " ", ""]
         )
         logger.info("[OK] Text splitter configured")
+
+        # ========================================
+        # Setup OpenAI client for summary generation
+        # ========================================
+        self.openai_client = OpenAI(api_key=api_keys.OPENAI_API_KEY)
+
+    def generate_summary(self, text: str, filename: str) -> str:
+        """
+        Genera sommario breve del documento usando LLM.
+
+        Il sommario aiuta l'agent a decidere quando usare il RAG tool,
+        fornendo visibilità sul contenuto dei documenti disponibili.
+
+        Args:
+            text: Testo completo del documento
+            filename: Nome file per contesto
+
+        Returns:
+            Sommario breve (1-2 frasi, max 100 parole)
+
+        Example:
+            >>> summary = processor.generate_summary(text, "python_guide.pdf")
+            >>> print(summary)
+            "Guida Python - variabili, loop, funzioni, OOP"
+        """
+        logger.info(f"[SUMMARY] Generating summary for {filename}...")
+
+        try:
+            # Tronca testo se troppo lungo (max 4000 chars per efficienza)
+            text_preview = text[:4000] if len(text) > 4000 else text
+
+            prompt = f"""Genera un sommario MOLTO breve (max 100 parole) di questo documento.
+Il sommario deve essere conciso e descrivere i temi principali trattati.
+
+Documento: {filename}
+Testo:
+{text_preview}
+
+Sommario (1-2 frasi max):"""
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",  # Modello veloce ed economico
+                messages=[
+                    {"role": "system", "content": "Sei un assistente che genera sommari concisi di documenti."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=100,
+                temperature=0.3  # Deterministico
+            )
+
+            summary = response.choices[0].message.content.strip()
+            logger.info(f"[OK] Summary: '{summary[:80]}...'")
+
+            return summary
+
+        except Exception as e:
+            logger.error(f"[ERROR] Summary generation failed: {e}")
+            # Fallback: usa inizio documento
+            fallback = text[:200].replace("\n", " ").strip()
+            return f"{filename} - {fallback}..."
 
     def load_pdf(self, filepath: str) -> Tuple[str, List[int]]:
         """
@@ -325,17 +388,18 @@ class DocumentProcessor:
         filepath: str,
         filename: str,
         vector_store
-    ) -> Tuple[str, int]:
+    ) -> Tuple[str, int, str]:
         """
-        Pipeline completo: load → chunk → metadata → add to vector store.
+        Pipeline completo: load → chunk → summary → metadata → add to vector store.
 
         Steps:
         1. Valida file supportato
         2. Carica e estrae testo
         3. Chunking
-        4. Genera metadata per ogni chunk
-        5. Aggiunge a vector store
-        6. Copia file in documents directory
+        4. Genera sommario documento (LLM)
+        5. Genera metadata per ogni chunk
+        6. Aggiunge a vector store
+        7. Copia file in documents directory
 
         Args:
             filepath: Path completo al file
@@ -343,7 +407,7 @@ class DocumentProcessor:
             vector_store: VectorStoreManager instance
 
         Returns:
-            Tuple (doc_id, numero chunks aggiunti)
+            Tuple (doc_id, numero chunks aggiunti, sommario documento)
 
         Raises:
             ValueError: Se file non supportato
@@ -386,11 +450,17 @@ class DocumentProcessor:
             raise ValueError(f"No chunks created from document: {filename}")
 
         # ========================================
-        # Step 4: Genera doc_id e metadata
+        # Step 4: Genera doc_id e sommario
         # ========================================
         doc_id = generate_doc_id(filename)
         logger.info(f"[ID] Generated doc_id: {doc_id}")
 
+        # Genera sommario documento (per system prompt)
+        summary = self.generate_summary(text, filename)
+
+        # ========================================
+        # Step 5: Genera metadata per chunks
+        # ========================================
         metadatas = []
         for i, chunk in enumerate(chunks):
             # Stima pagina per chunk (se disponibile)
@@ -407,6 +477,8 @@ class DocumentProcessor:
                 chunk_index=i,
                 page=page_num
             )
+            # Aggiungi sommario ai metadata (per ogni chunk)
+            metadata["summary"] = summary
             metadatas.append(metadata)
 
         # ========================================
@@ -442,8 +514,9 @@ class DocumentProcessor:
         logger.info(f"[SUCCESS] Processed document")
         logger.info(f"          Doc ID: {doc_id}")
         logger.info(f"          Chunks: {num_added}")
+        logger.info(f"          Summary: {summary[:80]}...")
 
-        return doc_id, num_added
+        return doc_id, num_added, summary
 
 
 if __name__ == "__main__":

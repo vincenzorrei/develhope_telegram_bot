@@ -113,7 +113,7 @@ async def document_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         vector_store = context.bot_data['vector_store']
 
         # Process and add to vector store
-        doc_id, num_chunks = document_processor.process_and_add(
+        doc_id, num_chunks, summary = document_processor.process_and_add(
             filepath=tmp_filepath,
             filename=filename,
             vector_store=vector_store
@@ -125,15 +125,16 @@ async def document_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Get stats
         stats = vector_store.get_stats()
 
-        # Success message
-        await update.message.reply_text(
-            prompts.DOCUMENT_ADDED_SUCCESS.format(
-                filename=filename,
-                num_chunks=num_chunks,
-                doc_id=doc_id,
-                total_docs=stats['total_documents']
-            )
+        # Success message con sommario
+        success_message = prompts.DOCUMENT_ADDED_SUCCESS.format(
+            filename=filename,
+            num_chunks=num_chunks,
+            doc_id=doc_id,
+            total_docs=stats['total_documents']
         )
+        success_message += f"\n<b>Sommario:</b> <i>{summary}</i>"
+
+        await update.message.reply_text(success_message, parse_mode='HTML')
 
         logger.info(f"[SUCCESS] Document added: {doc_id}")
 
@@ -168,6 +169,7 @@ async def list_docs_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         for i, doc in enumerate(documents, 1):
             message += f"{i}. <b>{doc['source']}</b>\n"
+            message += f"   <i>{doc.get('summary', 'No summary')}</i>\n"
             message += f"   ID: <code>{doc['doc_id']}</code>\n"
             message += f"   Chunks: {doc['num_chunks']}\n"
             message += f"   Data: {doc['timestamp'][:10]}\n\n"
