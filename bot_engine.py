@@ -23,6 +23,7 @@ ESERCIZI PROGRESSIVI (alla fine del file):
 """
 
 from typing import List, Dict, Optional, Any
+from datetime import datetime
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain.memory import ConversationBufferMemory
@@ -227,6 +228,39 @@ class LangChainEngine:
 
         return tools
 
+    def _build_temporal_context(self) -> str:
+        """
+        Costruisce sezione INFORMAZIONI TEMPORALI per system prompt.
+
+        Fornisce all'agent awareness della data corrente per:
+        - Contestualizzare risposte temporali
+        - Migliorare ricerche web su eventi recenti
+        - Rispondere a domande tipo "cosa è successo oggi?"
+
+        Returns:
+            Stringa formattata con data e giorno correnti
+
+        Example output:
+            📅 INFORMAZIONI TEMPORALI
+            Data odierna: Sabato 4 Gennaio 2025
+        """
+        now = datetime.now()
+
+        # Nomi giorni in italiano
+        giorni = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+        giorno_settimana = giorni[now.weekday()]
+
+        # Nomi mesi in italiano
+        mesi = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+                "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
+        mese = mesi[now.month - 1]
+
+        temporal_context = f"\n📅 INFORMAZIONI TEMPORALI\n"
+        temporal_context += f"Data odierna: {giorno_settimana} {now.day} {mese} {now.year}\n"
+        temporal_context += f"Ora: {now.hour:02d}:{now.minute:02d}\n"
+
+        return temporal_context
+
     def _build_documents_context(self) -> str:
         """
         Costruisce sezione DOCUMENTI DISPONIBILI per system prompt.
@@ -308,9 +342,10 @@ class LangChainEngine:
             # Modifichiamo il template per includere il system prompt
             original_template = react_prompt.template
 
-            # Costruisci system prompt con documenti disponibili
+            # Costruisci system prompt con contesto temporale e documenti
+            temporal_context = self._build_temporal_context()
             documents_context = self._build_documents_context()
-            full_system_prompt = prompts.SYSTEM_PROMPT + documents_context
+            full_system_prompt = prompts.SYSTEM_PROMPT + temporal_context + documents_context
 
             # Prepend system prompt al template esistente
             enhanced_template = full_system_prompt + "\n\n" + original_template
@@ -322,8 +357,9 @@ class LangChainEngine:
             logger.error(f"      [ERROR] Failed to load prompt from hub: {e}")
             # Fallback: usa prompt basico
             from langchain.prompts import PromptTemplate
+            temporal_context = self._build_temporal_context()
             documents_context = self._build_documents_context()
-            full_system_prompt = prompts.SYSTEM_PROMPT + documents_context
+            full_system_prompt = prompts.SYSTEM_PROMPT + temporal_context + documents_context
             react_prompt = PromptTemplate(
                 input_variables=["chat_history", "input", "agent_scratchpad"],
                 template=full_system_prompt + "\n\n{input}\n\n{agent_scratchpad}"
