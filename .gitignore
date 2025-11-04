@@ -205,3 +205,29 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ===== Telegram Bot RAG Project =====
+# Data directory (all runtime data)
+data/
+
+# User conversation memories (contains personal data)
+user_memories/
+
+# ChromaDB vector store (large, regenerable)
+chroma_db/
+
+# Uploaded documents (may contain sensitive content)
+documents/
+
+# Bot logs
+bot.log
+*.log
+
+# Local environment file (contains API keys)
+.env
+
+# Replit specific
+.replit
+.upm
+replit.nix
+nul

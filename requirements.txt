@@ -1,0 +1,33 @@
+# ==========================================
+# TELEGRAM BOT RAG - REQUIREMENTS (Simplified)
+# Compatible with Python 3.11+
+# Last Updated: 2025-01-04
+# ==========================================
+
+# Core Bot Framework
+python-telegram-bot>=22.0
+
+# OpenAI
+openai>=1.0
+
+# LangChain Core (let pip resolve versions)
+langchain>=0.3
+langchain-core>=0.3
+langchain-community>=0.3
+langchain-openai>=0.3
+langchain-text-splitters>=0.3
+
+# Vector Store
+chromadb>=0.4.22
+hnswlib
+
+# Document Loaders
+pypdf>=4.0
+python-docx>=1.0
+
+# Tools
+tavily-python>=0.5
+
+# Utilities
+python-dotenv>=1.0
+tiktoken>=0.8
