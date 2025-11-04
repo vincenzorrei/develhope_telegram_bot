@@ -194,14 +194,18 @@ class RAGConfig:
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "800"))
     CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "100"))
 
-    # Retrieval
-    TOP_K: int = int(os.getenv("RAG_TOP_K", "3"))
+    # Retrieval - numero di chunks da recuperare per ogni query
+    TOP_K: int = int(os.getenv("RAG_TOP_K", "5"))
 
     # Collection name in ChromaDB
     COLLECTION_NAME: str = "documents"
 
-    # Similarity threshold (0.0-1.0, più alto = più simile richiesto)
-    SIMILARITY_THRESHOLD: float = 0.7
+    # Similarity threshold per filtering (ChromaDB usa cosine distance: 0=identico, 2=opposto)
+    # STUDENTI: Threshold su distance (non score!). Valori tipici:
+    #   - 0.7: Solo risultati molto simili (potrebbe essere troppo restrittivo)
+    #   - 1.0-1.5: Buon bilanciamento per la maggior parte dei casi
+    #   - 2.0: Accetta praticamente tutto
+    SIMILARITY_THRESHOLD: float = 1.5
 
 
 # ============================================

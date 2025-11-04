@@ -380,6 +380,55 @@ def escape_markdown_v2(text: str) -> str:
     return ''.join('\\' + char if char in special_chars else char for char in text)
 
 
+def convert_markdown_to_html(text: str) -> str:
+    """
+    Converte formattazione Markdown in tag HTML per Telegram.
+
+    Questa funzione è un fallback per quando l'LLM genera Markdown
+    invece di HTML nonostante le istruzioni. Converte:
+    - **testo** → <b>testo</b>
+    - *testo* o _testo_ → <i>testo</i>
+    - `code` → <code>code</code>
+    - ```code``` → <pre>code</pre>
+    - ~~text~~ → <s>text</s>
+    - [link](url) → <a href="url">link</a>
+
+    Args:
+        text: Testo con formattazione Markdown
+
+    Returns:
+        Testo con tag HTML
+
+    Example:
+        >>> convert_markdown_to_html("**Hello** *world*!")
+        '<b>Hello</b> <i>world</i>!'
+    """
+    if not text:
+        return text
+
+    # Blocchi di codice (``` ... ```) - PRIMA dei code inline
+    text = re.sub(r'```([^`]+)```', r'<pre>\1</pre>', text, flags=re.DOTALL)
+
+    # Code inline (`code`)
+    text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
+
+    # Grassetto (**testo** o __testo__)
+    text = re.sub(r'\*\*([^\*]+)\*\*', r'<b>\1</b>', text)
+    text = re.sub(r'__([^_]+)__', r'<b>\1</b>', text)
+
+    # Corsivo (*testo* o _testo_) - DOPO grassetto per evitare conflitti
+    text = re.sub(r'(?<!\*)\*(?!\*)([^\*]+)(?<!\*)\*(?!\*)', r'<i>\1</i>', text)
+    text = re.sub(r'(?<!_)_(?!_)([^_]+)(?<!_)_(?!_)', r'<i>\1</i>', text)
+
+    # Barrato (~~text~~)
+    text = re.sub(r'~~([^~]+)~~', r'<s>\1</s>', text)
+
+    # Link markdown ([text](url))
+    text = re.sub(r'\[([^\]]+)\]\(([^\)]+)\)', r'<a href="\2">\1</a>', text)
+
+    return text
+
+
 def extract_command_args(text: str) -> tuple:
     """
     Estrae comando e argomenti da testo messaggio Telegram.
@@ -511,6 +560,7 @@ __all__ = [
     'format_file_size',
     'create_markdown_list',
     'escape_markdown_v2',
+    'convert_markdown_to_html',
     'extract_command_args',
     'validate_telegram_token',
     'validate_openai_key',

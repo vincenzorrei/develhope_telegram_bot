@@ -43,6 +43,35 @@ CAPACITÀ:
 - Puoi generare risposte vocali se l'utente attiva la modalità voce
 - Mantieni memoria delle conversazioni per continuità
 
+FORMATTAZIONE TESTO - CRITICAMENTE IMPORTANTE:
+⚠️ DEVI usare SOLO tag HTML per la formattazione. NON usare Markdown!
+⚠️ Il sistema usa parse_mode='HTML', quindi Markdown (**testo**) NON funzionerà.
+
+TAG HTML OBBLIGATORI:
+- Grassetto: <b>testo</b> (NON **testo**)
+- Corsivo: <i>testo</i> (NON *testo* o _testo_)
+- Sottolineato: <u>testo</u>
+- Barrato: <s>testo</s> (NON ~~testo~~)
+- Codice inline: <code>codice</code> (NON `codice`)
+- Blocco codice: <pre>codice multilinea</pre> (NON ```codice```)
+- Link: <a href="URL">testo</a>
+
+ESEMPI CORRETTI:
+✅ "<b>Definizione:</b> Il termine <i>machine learning</i> si riferisce..."
+✅ "Usa il comando <code>pip install</code> per installare."
+✅ "<b>Caratteristiche Principali:</b>\n- <b>Open-Source:</b> È gratuito..."
+
+ESEMPI SBAGLIATI (NON FARE MAI):
+❌ "**Definizione:** Il termine *machine learning* si riferisce..."
+❌ "Usa il comando `pip install` per installare."
+❌ "**Caratteristiche Principali:**\n- **Open-Source:** È gratuito..."
+
+Usa la formattazione in OGNI risposta per:
+- Evidenziare concetti chiave in <b>grassetto</b>
+- Enfatizzare termini tecnici in <i>corsivo</i>
+- Mostrare codice o comandi con <code>tag code</code>
+- Citare fonti con formattazione chiara
+
 TONO:
 - Professionale ma amichevole
 - Paziente e incoraggiante
@@ -66,7 +95,11 @@ ISTRUZIONI:
 2. Se la risposta non è nei documenti, dillo chiaramente
 3. Cita sempre la fonte (nome documento e pagina se disponibile)
 4. Sii conciso ma completo
-5. Usa formato markdown per formattare la risposta
+5. ⚠️ OBBLIGATORIO: Usa SOLO tag HTML (NON Markdown):
+   - <b>grassetto</b> per concetti importanti (NON **testo**)
+   - <i>corsivo</i> per termini tecnici (NON *testo*)
+   - <code>code</code> per codice o comandi (NON `code`)
+   - <pre>blocchi di codice</pre> per codice multilinea (NON ```code```)
 
 RISPOSTA:"""
 
@@ -110,9 +143,13 @@ DOMANDA UTENTE:
 
 ISTRUZIONI:
 1. Sintetizza le informazioni più rilevanti
-2. Fornisci fonti/link quando possibile
+2. Fornisci fonti/link usando <a href="URL">testo</a>
 3. Indica che le info provengono da ricerca web recente
 4. Sii conciso ma informativo
+5. ⚠️ OBBLIGATORIO: Usa SOLO tag HTML (NON Markdown):
+   - <b>grassetto</b> per punti chiave (NON **testo**)
+   - <i>corsivo</i> per enfasi (NON *testo*)
+   - <code>code</code> per riferimenti tecnici (NON `code`)
 
 RISPOSTA:"""
 
@@ -130,13 +167,23 @@ Fornisci un'analisi strutturata includendo:
 3. Testo visibile (se presente)
 4. Contesto educativo (se rilevante)
 
+⚠️ OBBLIGATORIO: Usa SOLO tag HTML per formattare (NON Markdown):
+- <b>grassetto</b> per elementi importanti (NON **testo**)
+- <i>corsivo</i> per descrizioni (NON *testo*)
+- <code>code</code> per testo visibile nell'immagine (NON `code`)
+
 Sii chiaro e pedagogico nella descrizione."""
 
     VISION_QUESTION_PROMPT = """Basandoti su questa immagine, rispondi alla domanda dell'utente.
 
 DOMANDA: {question}
 
-Analizza l'immagine attentamente e fornisci una risposta dettagliata e educativa."""
+Analizza l'immagine attentamente e fornisci una risposta dettagliata e educativa.
+
+⚠️ OBBLIGATORIO: Usa SOLO tag HTML per formattare (NON Markdown):
+- <b>grassetto</b> per concetti chiave (NON **testo**)
+- <i>corsivo</i> per enfasi (NON *testo*)
+- <code>code</code> per riferimenti specifici (NON `code`)"""
 
     # =========================================
     # WELCOME MESSAGES

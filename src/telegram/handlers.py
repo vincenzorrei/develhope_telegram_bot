@@ -163,20 +163,21 @@ async def list_docs_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(prompts.NO_DOCUMENTS_FOUND)
             return
 
-        # Format list
-        message = f"**Documenti caricati ({len(documents)}):**\n\n"
+        # Format list usando HTML invece di Markdown per evitare problemi con caratteri speciali
+        message = f"<b>Documenti caricati ({len(documents)}):</b>\n\n"
 
         for i, doc in enumerate(documents, 1):
-            message += f"{i}. **{doc['source']}**\n"
-            message += f"   ID: `{doc['doc_id']}`\n"
+            message += f"{i}. <b>{doc['source']}</b>\n"
+            message += f"   ID: <code>{doc['doc_id']}</code>\n"
             message += f"   Chunks: {doc['num_chunks']}\n"
             message += f"   Data: {doc['timestamp'][:10]}\n\n"
 
-        await update.message.reply_text(message, parse_mode='Markdown')
+        await update.message.reply_text(message, parse_mode='HTML')
 
     except Exception as e:
         logger.error(f"[ERROR] List docs failed: {e}")
-        await update.message.reply_text(f"Errore: {str(e)}")
+        # Non usare parse_mode per i messaggi di errore per evitare problemi con caratteri speciali
+        await update.message.reply_text(f"Errore nel recupero dei documenti: {str(e)}")
 
 
 @admin_only
@@ -377,8 +378,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Voice mode: SOLO audio (no testo)
             await update.message.reply_voice(voice=audio_bytes)
         else:
-            # Modalità normale: testo
-            await update.message.reply_text(response)
+            # Modalità normale: testo con formattazione HTML
+            await update.message.reply_text(response, parse_mode='HTML')
 
     except Exception as e:
         logger.error(f"[ERROR] Message processing failed: {e}")
@@ -420,7 +421,7 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id=user_id
         )
 
-        await update.message.reply_text(analysis)
+        await update.message.reply_text(analysis, parse_mode='HTML')
 
     except Exception as e:
         logger.error(f"[ERROR] Image processing failed: {e}")
@@ -482,8 +483,8 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Voice mode: SOLO audio
             await update.message.reply_voice(voice=audio_bytes)
         else:
-            # Modalità normale: testo
-            await update.message.reply_text(response)
+            # Modalità normale: testo con formattazione HTML
+            await update.message.reply_text(response, parse_mode='HTML')
 
     except Exception as e:
         logger.error(f"[ERROR] Voice processing failed: {e}")

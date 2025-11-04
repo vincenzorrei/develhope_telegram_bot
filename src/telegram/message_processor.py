@@ -9,6 +9,7 @@ from typing import Optional, Tuple
 from openai import OpenAI
 from config import api_keys
 from src.utils.logger import get_logger
+from src.utils.helpers import convert_markdown_to_html
 from src.llm.audio import AudioGenerator
 from src.llm.image_processor import ImageProcessor
 
@@ -65,6 +66,9 @@ class MessageProcessor:
                 user_id=user_id
             )
 
+            # Convert Markdown to HTML (fallback se LLM ignora istruzioni)
+            response = convert_markdown_to_html(response)
+
             # Generate audio se richiesto
             audio_bytes = None
             if generate_audio:
@@ -109,7 +113,12 @@ class MessageProcessor:
                     image_bytes=image_bytes
                 )
 
-            return analysis or "Non sono riuscito ad analizzare l'immagine."
+            result = analysis or "Non sono riuscito ad analizzare l'immagine."
+
+            # Convert Markdown to HTML (fallback se LLM ignora istruzioni)
+            result = convert_markdown_to_html(result)
+
+            return result
 
         except Exception as e:
             logger.error(f"[ERROR] Image processing failed: {e}")

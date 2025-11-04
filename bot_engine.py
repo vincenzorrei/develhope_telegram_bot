@@ -39,6 +39,7 @@ from config import (
 )
 from prompts import prompts
 from src.utils.logger import get_logger
+from src.utils.helpers import convert_markdown_to_html
 from src.rag.retriever import Retriever
 
 logger = get_logger(__name__)
@@ -387,6 +388,9 @@ class LangChainEngine:
             # Genera risposta
             response = self.llm.predict(augmented_prompt)
 
+            # Convert Markdown to HTML (fallback)
+            response = convert_markdown_to_html(response)
+
             # Aggiungi citazioni
             final_response = response + "\n\n" + sources
 
@@ -446,6 +450,9 @@ class LangChainEngine:
             })
 
             response = result.get("output", "Mi dispiace, non ho potuto generare una risposta.")
+
+            # Convert Markdown to HTML (fallback finale)
+            response = convert_markdown_to_html(response)
 
             # Aggiorna memoria
             memory.save_context(
