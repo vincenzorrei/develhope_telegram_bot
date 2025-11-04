@@ -2,15 +2,18 @@
 Message Processor Module
 
 Processa messaggi utente (testo, immagini, audio) e genera risposte.
-Integra LangChain, Vision, e TTS.
+Integra LangChain, Vision, TTS e Speech-to-Text (Whisper).
 """
 
 from typing import Optional, Tuple
+from openai import OpenAI
+from config import api_keys
 from src.utils.logger import get_logger
 from src.llm.audio import AudioGenerator
 from src.llm.image_processor import ImageProcessor
 
 logger = get_logger(__name__)
+client = OpenAI(api_key=api_keys.OPENAI_API_KEY)
 
 
 class MessageProcessor:
@@ -111,6 +114,49 @@ class MessageProcessor:
         except Exception as e:
             logger.error(f"[ERROR] Image processing failed: {e}")
             return f"Errore analisi immagine: {str(e)[:200]}"
+
+    async def transcribe_audio(
+        self,
+        audio_bytes: bytes,
+        audio_format: str = "ogg"
+    ) -> Optional[str]:
+        """
+        Trascrivi messaggio vocale usando OpenAI Whisper.
+
+        Args:
+            audio_bytes: Raw bytes del file audio
+            audio_format: Formato audio (ogg, mp3, wav, etc.)
+
+        Returns:
+            Testo trascritto o None se errore
+
+        Example:
+            >>> text = await processor.transcribe_audio(audio_bytes, "ogg")
+            >>> print(f"Transcription: {text}")
+        """
+        logger.info(f"[WHISPER] Transcribing audio ({len(audio_bytes)} bytes)...")
+
+        try:
+            # Salva temporaneamente audio in file-like object
+            import io
+            audio_file = io.BytesIO(audio_bytes)
+            audio_file.name = f"voice_message.{audio_format}"
+
+            # Whisper API transcription
+            transcription = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                language="it"  # Italiano (opzionale, Whisper auto-detect)
+            )
+
+            transcribed_text = transcription.text
+
+            logger.info(f"[WHISPER] Transcribed: '{transcribed_text[:100]}...'")
+            return transcribed_text
+
+        except Exception as e:
+            logger.error(f"[ERROR] Whisper transcription failed: {e}")
+            return None
 
 
 if __name__ == "__main__":

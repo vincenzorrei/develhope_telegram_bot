@@ -372,12 +372,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             generate_audio=voice_mode
         )
 
-        # Send text response
-        await update.message.reply_text(response)
-
-        # Send audio if generated
-        if audio_bytes:
+        # Send response based on voice mode
+        if voice_mode and audio_bytes:
+            # Voice mode: SOLO audio (no testo)
             await update.message.reply_voice(voice=audio_bytes)
+        else:
+            # Modalità normale: testo
+            await update.message.reply_text(response)
 
     except Exception as e:
         logger.error(f"[ERROR] Message processing failed: {e}")
@@ -424,6 +425,74 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"[ERROR] Image processing failed: {e}")
         await update.message.reply_text(f"Errore analisi immagine: {str(e)[:200]}")
+
+
+@user_or_admin
+async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handler per messaggi vocali.
+
+    Trascrivi con Whisper e processa come testo normale.
+    """
+    user = update.effective_user
+    user_id = user.id
+    voice = update.message.voice
+
+    logger.info(f"[VOICE] User {user_id} sent voice message ({voice.duration}s)")
+
+    # Show typing
+    await update.message.chat.send_action(action="typing")
+
+    try:
+        message_processor = context.bot_data['message_processor']
+
+        # Download voice message
+        file = await voice.get_file()
+        audio_bytes = await file.download_as_bytearray()
+
+        logger.info(f"[VOICE] Downloaded {len(audio_bytes)} bytes")
+
+        # Trascrizione con Whisper
+        transcribed_text = await message_processor.transcribe_audio(
+            audio_bytes=bytes(audio_bytes),
+            audio_format="ogg"  # Telegram voice messages are OGG
+        )
+
+        if not transcribed_text:
+            await update.message.reply_text(
+                "Non sono riuscito a trascrivere il messaggio vocale. "
+                "Riprova parlando più chiaramente."
+            )
+            return
+
+        logger.info(f"[VOICE] Transcription: '{transcribed_text}'")
+
+        # Check voice mode per risposta
+        voice_mode = context.user_data.get('voice_mode', False)
+
+        # Process come messaggio testuale normale
+        response, audio_bytes = await message_processor.process_text(
+            text=transcribed_text,
+            user_id=user_id,
+            generate_audio=voice_mode
+        )
+
+        # Send response based on voice mode
+        if voice_mode and audio_bytes:
+            # Voice mode: SOLO audio
+            await update.message.reply_voice(voice=audio_bytes)
+        else:
+            # Modalità normale: testo
+            await update.message.reply_text(response)
+
+    except Exception as e:
+        logger.error(f"[ERROR] Voice processing failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+        await update.message.reply_text(
+            f"Errore elaborazione messaggio vocale: {str(e)[:200]}"
+        )
 
 
 # ========================================
@@ -483,6 +552,12 @@ def setup_handlers(app, langchain_engine, vector_store, document_processor, mess
         image_handler
     ))
 
+    # Voice message handler
+    app.add_handler(MessageHandler(
+        filters.VOICE,
+        voice_handler
+    ))
+
     # Text message handler (catch-all, deve essere ultimo!)
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND,
@@ -492,7 +567,7 @@ def setup_handlers(app, langchain_engine, vector_store, document_processor, mess
     logger.info("[OK] All handlers registered")
     logger.info("      Admin: 4 commands")
     logger.info("      User: 5 commands")
-    logger.info("      Message: 3 types")
+    logger.info("      Message: 4 types (text, voice, image, document)")
 
 
 if __name__ == "__main__":

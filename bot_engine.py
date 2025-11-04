@@ -254,6 +254,18 @@ class LangChainEngine:
         try:
             react_prompt = hub.pull("hwchase17/react-chat")
             logger.info("      [OK] Loaded react-chat prompt from hub")
+
+            # IMPORTANTE: Inietta il nostro SYSTEM_PROMPT personalizzato
+            # Il prompt da hub non sa delle nostre capacità vocali!
+            # Modifichiamo il template per includere il system prompt
+            original_template = react_prompt.template
+
+            # Prepend system prompt al template esistente
+            enhanced_template = prompts.SYSTEM_PROMPT + "\n\n" + original_template
+            react_prompt.template = enhanced_template
+
+            logger.info("      [OK] Injected custom SYSTEM_PROMPT into agent")
+
         except Exception as e:
             logger.error(f"      [ERROR] Failed to load prompt from hub: {e}")
             # Fallback: usa prompt basico
