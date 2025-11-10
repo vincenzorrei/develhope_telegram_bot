@@ -7,7 +7,7 @@ Integra LangChain, Vision, TTS e Speech-to-Text (Whisper).
 
 from typing import Optional, Tuple
 from openai import OpenAI
-from config import api_keys
+from config import api_keys, AgentConfig
 from src.utils.logger import get_logger
 from src.utils.helpers import convert_markdown_to_html
 from src.llm.audio import AudioGenerator
@@ -47,7 +47,11 @@ class MessageProcessor:
         generate_audio: bool = False
     ) -> Tuple[str, Optional[bytes]]:
         """
-        Processa messaggio testuale.
+        Processa messaggio testuale (ASYNC) con retry automatico.
+
+        Strategia resilienza:
+        1. Tentativo 1-N: Agent normale con ReAct pattern
+        2. Fallback: RAG diretto (bypass agent) se parsing errors persistono
 
         Args:
             text: Testo utente
@@ -59,14 +63,70 @@ class MessageProcessor:
         """
         logger.info(f"[TEXT] Processing for user {user_id}")
 
-        try:
-            # Process con LangChain
-            response = self.langchain_engine.process_message(
-                user_message=text,
-                user_id=user_id
-            )
+        response = None
+        max_retries = AgentConfig.MAX_RETRIES
 
-            # Convert Markdown to HTML (fallback se LLM ignora istruzioni)
+        # ========================================
+        # Retry Loop con Agent
+        # ========================================
+        for attempt in range(max_retries + 1):
+            try:
+                # Process con LangChain Agent (ASYNC)
+                response = await self.langchain_engine.process_message(
+                    user_message=text,
+                    user_id=user_id
+                )
+
+                # Verifica se risposta è valida
+                # Una risposta valida dovrebbe essere > 100 caratteri normalmente
+                is_valid = (
+                    response and
+                    len(response) > 100 and
+                    "Invalid Format" not in response and
+                    "parsing error" not in response.lower()
+                )
+
+                if is_valid:
+                    logger.info(f"✅ [TEXT] Agent succeeded on attempt {attempt + 1}/{max_retries + 1}")
+                    break  # Success!
+                else:
+                    logger.warning(f"⚠️  [TEXT] Agent response invalid (len={len(response) if response else 0}) on attempt {attempt + 1}/{max_retries + 1}")
+                    if attempt < max_retries:
+                        logger.info(f"🔄 [TEXT] Retrying...")
+                        response = None  # Clear for retry
+                        continue
+                    else:
+                        logger.warning(f"⚠️  [TEXT] Max retries reached, trying fallback...")
+                        response = None  # Force fallback
+
+            except Exception as e:
+                logger.error(f"❌ [ERROR] Agent failed on attempt {attempt + 1}: {e}")
+                if attempt < max_retries:
+                    logger.info(f"🔄 [TEXT] Retrying after exception...")
+                    continue
+                else:
+                    logger.warning(f"⚠️  [TEXT] Max retries reached after exceptions")
+                    response = None  # Force fallback
+
+        # ========================================
+        # Fallback: RAG Diretto (Bypass Agent)
+        # ========================================
+        # Se dopo retry la risposta è ancora invalida, usa RAG diretto
+        if not response or len(response) < 100 or "Invalid Format" in response:
+            logger.info(f"🔧 [FALLBACK] Using direct RAG search (bypassing agent)...")
+            logger.info(f"    Reason: response={'None' if not response else f'{len(response)} chars'}")
+            try:
+                response = await self.langchain_engine._search_documents(text)
+                logger.info(f"✅ [FALLBACK] Direct RAG succeeded ({len(response)} chars)")
+            except Exception as e:
+                logger.error(f"❌ [ERROR] Fallback also failed: {e}")
+                response = f"Mi dispiace, ho riscontrato problemi tecnici. Riprova tra poco."
+
+        # ========================================
+        # Post-Processing
+        # ========================================
+        try:
+            # Convert Markdown to HTML (UNICO PUNTO DI CONVERSIONE)
             response = convert_markdown_to_html(response)
 
             # Generate audio se richiesto
@@ -78,7 +138,7 @@ class MessageProcessor:
             return response, audio_bytes
 
         except Exception as e:
-            logger.error(f"[ERROR] Text processing failed: {e}")
+            logger.error(f"[ERROR] Post-processing failed: {e}")
             return f"Errore: {str(e)[:200]}", None
 
     async def process_image(

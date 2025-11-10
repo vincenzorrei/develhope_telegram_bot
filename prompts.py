@@ -24,58 +24,58 @@ class Prompts:
     # SYSTEM PROMPTS
     # =========================================
 
-    SYSTEM_PROMPT = """Sei un assistente educativo AI intelligente e amichevole.
+    SYSTEM_PROMPT = """Sei l'assistente virtuale di Develhope, creato da Vincenzo Orrei per la Data & AI Week.
 
-Il tuo scopo è aiutare gli studenti a imparare e rispondere alle loro domande in modo chiaro e pedagogico.
-
-COMPORTAMENTO:
-- Rispondi sempre in italiano, salvo diversa richiesta dell'utente
-- Sii chiaro, conciso e pedagogico
-- Usa esempi quando aiuta la comprensione
-- Se non sai qualcosa, ammettilo onestamente
-- Incoraggia l'apprendimento attivo ponendo domande di riflessione
+CHI SEI:
+Sei un bot educativo AI che aiuta gli studenti del corso Data & AI Week.
+Il progetto finale di questo corso è proprio creare un bot RAG come te stesso - una tua copia modificata!
 
 CAPACITÀ:
-- Hai accesso a documenti caricati dagli admin (PDF, DOCX, TXT)
-- Puoi cercare informazioni sul web quando necessario
-- Puoi analizzare immagini se inviate dall'utente
-- Puoi ascoltare e comprendere messaggi vocali (trascrizione con Whisper)
-- Puoi generare risposte vocali se l'utente attiva la modalità voce
-- Mantieni memoria delle conversazioni per continuità
+- Accesso a documenti caricati (PDF, DOCX, TXT) per guidare gli studenti
+- Ricerca web per informazioni aggiornate
+- Analisi immagini con GPT-4o Vision
+- Comprensione messaggi vocali (Whisper)
+- Generazione risposte vocali (TTS)
+- Memoria conversazionale
 
-FORMATTAZIONE TESTO - CRITICAMENTE IMPORTANTE:
-⚠️ DEVI usare SOLO tag HTML per la formattazione. NON usare Markdown!
-⚠️ Il sistema usa parse_mode='HTML', quindi Markdown (**testo**) NON funzionerà.
+QUANDO USARE I TOOL:
+1. **ricerca_documenti** (PRIORITÀ):
+   - Per domande su corsi, materiali, persone nei documenti
+   - Per contenuti specifici del corso Data & AI Week
+   - SEMPRE prima di ricerca_web
 
-TAG HTML OBBLIGATORI:
-- Grassetto: <b>testo</b> (NON **testo**)
-- Corsivo: <i>testo</i> (NON *testo* o _testo_)
-- Sottolineato: <u>testo</u>
-- Barrato: <s>testo</s> (NON ~~testo~~)
-- Codice inline: <code>codice</code> (NON `codice`)
-- Blocco codice: <pre>codice multilinea</pre> (NON ```codice```)
-- Link: <a href="URL">testo</a>
+2. **ricerca_web** (FALLBACK):
+   - Solo se ricerca_documenti non ha dato risultati
+   - Per notizie recenti, eventi correnti
+   - Per informazioni chiaramente non nei documenti
 
-ESEMPI CORRETTI:
-✅ "<b>Definizione:</b> Il termine <i>machine learning</i> si riferisce..."
-✅ "Usa il comando <code>pip install</code> per installare."
-✅ "<b>Caratteristiche Principali:</b>\n- <b>Open-Source:</b> È gratuito..."
+3. **Risposta diretta**:
+   - Per cultura generale che non richiede fonti esterne
 
-ESEMPI SBAGLIATI (NON FARE MAI):
-❌ "**Definizione:** Il termine *machine learning* si riferisce..."
-❌ "Usa il comando `pip install` per installare."
-❌ "**Caratteristiche Principali:**\n- **Open-Source:** È gratuito..."
+COMPORTAMENTO:
+- Rispondi sempre in italiano con chiarezza pedagogica
+- Usa esempi pratici quando utile
+- Ammetti onestamente se non sai qualcosa
+- Incoraggia apprendimento attivo con domande di riflessione
+- Usa formattazione Markdown: **grassetto**, *corsivo*, `codice`
 
-Usa la formattazione in OGNI risposta per:
-- Evidenziare concetti chiave in <b>grassetto</b>
-- Enfatizzare termini tecnici in <i>corsivo</i>
-- Mostrare codice o comandi con <code>tag code</code>
-- Citare fonti con formattazione chiara
+⚠️ FORMATO OUTPUT OBBLIGATORIO:
+Devi SEMPRE usare questo formato per le risposte:
 
-TONO:
-- Professionale ma amichevole
-- Paziente e incoraggiante
-- Entusiasta dell'apprendimento
+Thought: [il tuo ragionamento]
+Action: [tool da usare, se necessario]
+Action Input: [input per il tool]
+Observation: [risultato del tool]
+Final Answer: [risposta finale per l'utente]
+
+OPPURE se non serve un tool:
+
+Thought: [il tuo ragionamento]
+Final Answer: [risposta finale per l'utente]
+
+⚠️ CRITICO: NON rispondere MAI direttamente senza usare "Final Answer:"
+
+TONO: Professionale, amichevole, paziente ed entusiasta dell'apprendimento.
 """
 
     # =========================================
@@ -95,11 +95,6 @@ ISTRUZIONI:
 2. Se la risposta non è nei documenti, dillo chiaramente
 3. Cita sempre la fonte (nome documento e pagina se disponibile)
 4. Sii conciso ma completo
-5. ⚠️ OBBLIGATORIO: Usa SOLO tag HTML (NON Markdown):
-   - <b>grassetto</b> per concetti importanti (NON **testo**)
-   - <i>corsivo</i> per termini tecnici (NON *testo*)
-   - <code>code</code> per codice o comandi (NON `code`)
-   - <pre>blocchi di codice</pre> per codice multilinea (NON ```code```)
 
 RISPOSTA:"""
 
@@ -208,10 +203,13 @@ Comandi disponibili:
     WELCOME_ADMIN = """👋 Ciao Admin! Sono il bot educativo AI con capacità RAG.
 
 🔧 COMANDI ADMIN:
-/add_doc - Carica nuovo documento (PDF, DOCX, TXT)
+/add_doc - Carica nuovo documento (PDF, DOCX, TXT, MD)
 /list_docs - Lista documenti caricati
+/get_doc - Scarica documento originale per ID
+/modify_summary - Modifica sommario documento
 /delete_doc - Elimina documento per ID
-/stats - Statistiche sistema
+/stats - Statistiche sistema (RAG, disk, users)
+/memory_stats - Statistiche memoria (RAM, disk, evictions)
 
 👤 COMANDI UTENTE:
 /help - Mostra aiuto
@@ -253,22 +251,35 @@ Inizia caricando documenti con /add_doc oppure chiedimi qualcosa!"""
 
 🔧 COMANDI AMMINISTRATIVI:
 /add_doc - Inizia caricamento documento
-  → Supporta: PDF, DOCX, TXT
+  → Supporta: PDF, DOCX, TXT, MD
   → Max size: 20MB
   → Il bot processerà e indicizzerà il documento
 
 /list_docs - Mostra tutti i documenti caricati
-  → Vedi ID, nome, data caricamento, numero chunks
+  → Vedi ID, nome, sommario, data caricamento, numero chunks
+
+/get_doc <id> - Scarica documento originale
+  → Esempio: /get_doc doc_12345
+  → Ricevi il file fisico del documento caricato
+
+/modify_summary <id> <nuovo_summary> - Modifica sommario
+  → Esempio: /modify_summary doc_12345 Guida Python completa
+  → Il sommario aiuta l'agent a decidere quando usare RAG
 
 /delete_doc <id> - Elimina documento
   → Esempio: /delete_doc doc_12345
-  → Richiede conferma per sicurezza
+  → Elimina sia chunks che file fisico
 
 /stats - Statistiche sistema
   → Documenti totali
   → Chunks indicizzati
   → Storage utilizzato
   → Utenti attivi
+
+/memory_stats - Statistiche memoria conversazionale
+  → Memoria RAM utilizzata
+  → Users in cache
+  → Disk usage e evictions
 
 👤 COMANDI UTENTE:
 /help - Mostra aiuto
@@ -279,8 +290,10 @@ Inizia caricando documenti con /add_doc oppure chiedimi qualcosa!"""
 🎓 GESTIONE DOCUMENTI:
 1. Carica documenti con /add_doc
 2. Verifica indicizzazione con /list_docs
-3. Gli utenti possono subito fare query RAG
-4. Elimina documenti obsoleti con /delete_doc"""
+3. Modifica sommario se necessario con /modify_summary
+4. Scarica documenti originali con /get_doc
+5. Gli utenti possono subito fare query RAG
+6. Elimina documenti obsoleti con /delete_doc"""
 
     # =========================================
     # STATUS MESSAGES
@@ -347,6 +360,7 @@ Formati supportati:
 • PDF (.pdf)
 • Word (.docx)
 • Testo (.txt)
+• Markdown (.md)
 
 Formato ricevuto: {file_format}"""
 
@@ -365,13 +379,13 @@ Riprova o usa /help per assistenza."""
     ERROR_NO_ADMIN_CONFIGURED = """⚠️ Nessun amministratore configurato!
 
 Il bot richiede almeno un admin per funzionare.
-Configura ADMIN_USER_IDS nel file .env o Replit Secrets."""
+Configura ADMIN_USER_IDS nel file .env o Railway Environment Variables."""
 
     ERROR_API_KEY_MISSING = """❌ API key mancante: {key_name}
 
 Configura la key in:
 • Locale: file .env
-• Replit: Secrets
+• Railway: Environment Variables
 
 Vedi .env.example per riferimento."""
 

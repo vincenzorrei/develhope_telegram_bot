@@ -289,7 +289,7 @@ def is_supported_document(filename: str) -> bool:
         >>> is_supported_document("file.exe")
         False
     """
-    supported_extensions = ["pdf", "docx", "txt"]
+    supported_extensions = ["pdf", "docx", "txt", "md"]
     ext = extract_file_extension(filename)
     return ext in supported_extensions
 
@@ -380,6 +380,93 @@ def escape_markdown_v2(text: str) -> str:
     return ''.join('\\' + char if char in special_chars else char for char in text)
 
 
+def sanitize_html_for_telegram(text: str) -> str:
+    """
+    Sanitizza HTML rimuovendo o convertendo tag non supportati da Telegram.
+
+    Telegram supporta SOLO questi tag HTML:
+    - <b>, <strong> → grassetto
+    - <i>, <em> → corsivo
+    - <u>, <ins> → sottolineato
+    - <s>, <strike>, <del> → barrato
+    - <code> → monospace inline
+    - <pre> → blocco pre-formattato
+    - <a href=""> → link
+
+    Questa funzione converte/rimuove tag non supportati:
+    - <p> → rimuovi tag, mantieni contenuto + newline
+    - <h1>, <h2>, <h3>, etc. → <b>contenuto</b>
+    - <ul>, <ol> → rimuovi tag
+    - <li> → converti in "• contenuto"
+    - <div>, <span>, <br> → rimuovi tag, mantieni contenuto
+    - Tutti gli altri tag → rimuovi (mantieni solo contenuto)
+
+    Args:
+        text: Testo con HTML completo (potenzialmente non supportato)
+
+    Returns:
+        Testo con solo tag HTML supportati da Telegram
+
+    Example:
+        >>> sanitize_html_for_telegram("<p>Hello <h3>World</h3></p>")
+        'Hello <b>World</b>'
+    """
+    if not text:
+        return text
+
+    # 1. Converti headings (h1-h6) in grassetto
+    text = re.sub(r'<h[1-6][^>]*>(.*?)</h[1-6]>', r'<b>\1</b>\n\n', text, flags=re.DOTALL | re.IGNORECASE)
+
+    # 2. Converti <li> in bullet points
+    text = re.sub(r'<li[^>]*>(.*?)</li>', r'• \1\n', text, flags=re.DOTALL | re.IGNORECASE)
+
+    # 3. Rimuovi tag liste (ul, ol) mantenendo contenuto
+    text = re.sub(r'</?ul[^>]*>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?ol[^>]*>', '\n', text, flags=re.IGNORECASE)
+
+    # 4. Rimuovi <p> aggiungendo newline
+    text = re.sub(r'<p[^>]*>(.*?)</p>', r'\1\n\n', text, flags=re.DOTALL | re.IGNORECASE)
+
+    # 5. Converti <br> in newline
+    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+
+    # 6. Rimuovi <div>, <span> mantenendo contenuto
+    text = re.sub(r'</?div[^>]*>', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?span[^>]*>', '', text, flags=re.IGNORECASE)
+
+    # 7. Normalizza tag supportati (strong → b, em → i, etc.)
+    text = re.sub(r'<strong>', '<b>', text, flags=re.IGNORECASE)
+    text = re.sub(r'</strong>', '</b>', text, flags=re.IGNORECASE)
+    text = re.sub(r'<em>', '<i>', text, flags=re.IGNORECASE)
+    text = re.sub(r'</em>', '</i>', text, flags=re.IGNORECASE)
+    text = re.sub(r'<(strike|del)>', '<s>', text, flags=re.IGNORECASE)
+    text = re.sub(r'</(strike|del)>', '</s>', text, flags=re.IGNORECASE)
+    text = re.sub(r'<ins>', '<u>', text, flags=re.IGNORECASE)
+    text = re.sub(r'</ins>', '</u>', text, flags=re.IGNORECASE)
+
+    # 8. Rimuovi tutti gli altri tag non supportati mantenendo contenuto
+    # Lista tag supportati finali
+    supported_tags = ['b', 'i', 'u', 's', 'code', 'pre', 'a']
+
+    # Pattern per trovare tag apertura e chiusura
+    def filter_tags(match):
+        tag_full = match.group(0)  # <tag attr="value"> o </tag>
+        tag_name_match = re.match(r'</?(\w+)', tag_full)
+        if tag_name_match:
+            tag_name = tag_name_match.group(1).lower()
+            if tag_name in supported_tags:
+                return tag_full  # Mantieni tag supportato
+        return ''  # Rimuovi tag non supportato
+
+    text = re.sub(r'</?[^>]+>', filter_tags, text)
+
+    # 9. Pulisci newline multipli e spazi eccessivi
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r' {2,}', ' ', text)
+
+    return text.strip()
+
+
 def convert_markdown_to_html(text: str) -> str:
     """
     Converte formattazione Markdown in tag HTML per Telegram.
@@ -393,11 +480,13 @@ def convert_markdown_to_html(text: str) -> str:
     - ~~text~~ → <s>text</s>
     - [link](url) → <a href="url">link</a>
 
+    Poi sanitizza HTML per rimuovere tag non supportati da Telegram.
+
     Args:
-        text: Testo con formattazione Markdown
+        text: Testo con formattazione Markdown o HTML
 
     Returns:
-        Testo con tag HTML
+        Testo con solo tag HTML supportati da Telegram
 
     Example:
         >>> convert_markdown_to_html("**Hello** *world*!")
@@ -425,6 +514,9 @@ def convert_markdown_to_html(text: str) -> str:
 
     # Link markdown ([text](url))
     text = re.sub(r'\[([^\]]+)\]\(([^\)]+)\)', r'<a href="\2">\1</a>', text)
+
+    # IMPORTANTE: Sanitizza HTML per rimuovere tag non supportati da Telegram
+    text = sanitize_html_for_telegram(text)
 
     return text
 
@@ -560,6 +652,7 @@ __all__ = [
     'format_file_size',
     'create_markdown_list',
     'escape_markdown_v2',
+    'sanitize_html_for_telegram',
     'convert_markdown_to_html',
     'extract_command_args',
     'validate_telegram_token',

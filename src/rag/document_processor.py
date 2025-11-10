@@ -276,13 +276,52 @@ Sommario (1-2 frasi max):"""
             logger.error(f"[ERROR] Failed to load TXT: {e}")
             raise
 
+    def load_md(self, filepath: str) -> str:
+        """
+        Carica Markdown (.md) e legge contenuto.
+
+        Il Markdown viene trattato come testo plain, mantenendo
+        la formattazione originale che può essere utile per il contesto.
+
+        Args:
+            filepath: Path al file MD
+
+        Returns:
+            Testo completo
+
+        Raises:
+            Exception: Se errore lettura MD
+
+        Example:
+            >>> text = processor.load_md("document.md")
+        """
+        logger.info(f"[MD] Loading: {filepath}")
+
+        try:
+            with open(filepath, 'r', encoding='utf-8') as file:
+                text_content = file.read()
+
+            logger.info(f"[OK] Extracted {len(text_content)} characters")
+            return text_content
+
+        except UnicodeDecodeError:
+            # Fallback a latin-1 se UTF-8 fallisce
+            logger.warning("[WARN] UTF-8 failed, trying latin-1")
+            with open(filepath, 'r', encoding='latin-1') as file:
+                text_content = file.read()
+            return text_content
+
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to load MD: {e}")
+            raise
+
     def load_document(self, filepath: str, file_type: str) -> Tuple[str, Optional[List[int]]]:
         """
         Router per caricare documento in base al tipo.
 
         Args:
             filepath: Path al file
-            file_type: Estensione file (pdf, docx, txt)
+            file_type: Estensione file (pdf, docx, txt, md)
 
         Returns:
             Tuple (testo, lista pagine o None)
@@ -302,6 +341,9 @@ Sommario (1-2 frasi max):"""
             return text, None
         elif file_type == "txt":
             text = self.load_txt(filepath)
+            return text, None
+        elif file_type == "md":
+            text = self.load_md(filepath)
             return text, None
         else:
             raise ValueError(f"Unsupported file type: {file_type}")

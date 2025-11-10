@@ -20,7 +20,7 @@ Bot Telegram che risponde usando:
 
 ## 📚 DOCUMENTAZIONE DI RIFERIMENTO
 
-Il repository contiene `research.md` con analisi tecnica completa per costruire il bot su Replit Free Tier, includendo:
+Il repository contiene `research.md` con analisi tecnica completa per costruire il bot su Railway Hobby Plan, includendo:
 - Architettura ottimale
 - Workaround tecnici critici
 - Best practices LangChain 0.3.x
@@ -44,16 +44,16 @@ chromadb>=0.4.22,<0.5.0          # CRITICO: <0.5.0
 pypdf==4.0.0                     # NON PyPDF2 (deprecato)
 python-docx==1.1.0
 tavily-python==0.5.0
-pysqlite3-binary==0.5.2          # Workaround SQLite Replit
+pysqlite3-binary==0.5.2          # Workaround SQLite Railway
 ```
 
 ### Python Version
 **Python 3.11** (NON 3.12+ per incompatibilità ChromaDB)
 
 ### Deployment
-- **Primario**: Replit Free tier con polling
+- **Primario**: Railway Hobby Plan ($5/mese) con polling
 - **Secondario**: Locale
-- **NO webhook**: Solo polling (requisito Replit Free)
+- **NO webhook**: Solo polling (requisito Railway Hobby Plan - limitazioni RAM 0.5GB)
 
 ---
 
@@ -61,7 +61,7 @@ pysqlite3-binary==0.5.2          # Workaround SQLite Replit
 ```
 telegram-ai-bot/
 ├── 📄 README.md                    # Guida studenti (italiano)
-├── 📄 README_SETUP_REPLIT.md       # Setup Replit step-by-step
+├── 📄 README_SETUP_RAILWAY.md      # Setup Railway step-by-step
 ├── 📄 README_SETUP_LOCAL.md        # Setup locale
 ├── 📄 research.md                  # ⭐ ANALISI TECNICA COMPLETA
 │
@@ -114,7 +114,7 @@ telegram-ai-bot/
 ### 📄 main.py - Entry Point
 
 **Responsabilità:**
-1. Setup workaround SQLite per Replit (CRITICO)
+1. Setup workaround SQLite per Railway (se necessario)
 2. Creazione cartelle necessarie
 3. Inizializzazione: ChromaDB → LangChain → Telegram Bot
 4. Avvio polling Telegram
@@ -400,7 +400,7 @@ except Exception as e:
 
 **Sezioni obbligatorie:**
 1. **Introduzione**: Cosa fa, perché utile, features principali
-2. **Quick Start Replit**: Setup 5 minuti con link a setup dettagliato
+2. **Quick Start Railway**: Setup 10-15 minuti con link a setup dettagliato
 3. **Quick Start Locale**: Setup dettagliato con prerequisiti
 4. **Struttura Progetto**: Spiegazione cartelle e file chiave
 5. **Comandi Disponibili**: Tabella Admin vs User commands
@@ -410,7 +410,7 @@ except Exception as e:
 9. **Risorse**: Link documentazione LangChain, OpenAI, ChromaDB
 10. **Licenza & Contributi**
 
-### README_SETUP_REPLIT.md
+### README_SETUP_RAILWAY.md
 
 Step-by-step illustrato con:
 - Screenshot testuali ASCII art
@@ -432,9 +432,9 @@ Include:
 
 ## ⚠️ PROBLEMI CRITICI DA EVITARE
 
-### 1. ChromaDB su Replit
-**PROBLEMA:** SQLite version troppo vecchio  
-**SOLUZIONE:** Workaround pysqlite3 PRIMA di ogni import chromadb
+### 1. ChromaDB su Railway
+**PROBLEMA:** Possibili incompatibilità SQLite version
+**SOLUZIONE:** Workaround pysqlite3 PRIMA di ogni import chromadb (se necessario)
 
 ### 2. LangChain Agent Deprecation
 **PROBLEMA:** `initialize_agent` deprecato in 0.3.x  
@@ -478,7 +478,7 @@ Include:
 - [ ] SQLite workaround in config.py
 
 ### Testing
-- [ ] Bot avvia senza errori su Replit
+- [ ] Bot avvia senza errori su Railway
 - [ ] Bot avvia senza errori in locale
 - [ ] /start risponde correttamente (admin vs user)
 - [ ] /add_doc carica documento PDF/DOCX/TXT
@@ -495,7 +495,7 @@ Include:
 
 ### Documentazione
 - [ ] README.md completo in italiano
-- [ ] README_SETUP_REPLIT.md step-by-step
+- [ ] README_SETUP_RAILWAY.md step-by-step
 - [ ] README_SETUP_LOCAL.md dettagliato
 - [ ] research.md incluso nella repo
 - [ ] Commenti inline abbondanti
@@ -506,7 +506,7 @@ Include:
 ### Deployment
 - [ ] requirements.txt completo con versioni pinned
 - [ ] Python 3.11 specificato
-- [ ] Testato su Replit Free Tier
+- [ ] Testato su Railway Hobby Plan
 - [ ] Testato in locale (Mac/Linux/Windows)
 - [ ] data/ in .gitignore
 - [ ] Secrets mai committate
@@ -536,7 +536,7 @@ Include:
 13. `src/utils/logger.py` con formattazione
 14. `src/utils/conversation_manager.py` (opzionale)
 15. `src/utils/helpers.py` utilities
-16. README_SETUP_REPLIT.md dettagliato
+16. README_SETUP_RAILWAY.md dettagliato
 17. README_SETUP_LOCAL.md dettagliato
 18. `docs/ARCHITECTURE.md`
 19. `docs/LANGCHAIN_GUIDE.md`
@@ -548,16 +548,16 @@ Include:
 ## 🚀 OUTPUT FINALE ATTESO
 
 Repository completa con:
-1. **Bot funzionante** su Replit e locale (polling)
+1. **Bot funzionante** su Railway e locale (polling)
 2. **Documentazione completa** in italiano per neofiti
 3. **Codice didattico** pesantemente commentato
 4. **research.md** con analisi tecnica completa
 5. **Esercizi progressivi** per apprendimento autonomo
-6. **Zero friction** per studenti (deploy 5-10 minuti)
+6. **Setup guidato** per studenti (deploy 10-15 minuti)
 
 Gli studenti potranno:
-- ✅ Fork repository e deploy immediato
-- ✅ Configurare API keys in Secrets (Replit) o .env (locale)
+- ✅ Fork repository e deploy su Railway
+- ✅ Configurare API keys in Environment Variables (Railway) o .env (locale)
 - ✅ Modificare prompts senza toccare logica
 - ✅ Caricare documenti PDF/DOCX/TXT via Telegram
 - ✅ Fare query RAG con citazioni automatiche
@@ -575,11 +575,25 @@ Gli studenti potranno:
 1. **Consulta sempre `research.md`** per decisioni tecniche critiche
 2. **Commenta abbondantemente** pensando a studenti neofiti
 3. **Usa emoji nei log** per rendere output comprensibile
-4. **Test su Replit** prima di considerare completo
+4. **Test su Railway** prima di considerare completo
 5. **Errori devono essere user-friendly** su Telegram
 6. **Ogni file deve essere standalone comprensibile** con docstring chiara
 7. **Priorità: didattica > performance** (codice chiaro > codice ottimizzato)
 8. **README.md è la prima impressione** - deve invogliare a provare
+
+## ⚙️ LIMITAZIONI RAILWAY HOBBY PLAN
+
+**Risorse per servizio:**
+- RAM: 0.5 GB massimo
+- vCPU: 1 vCPU
+- Storage: 0.5 GB per volumes
+- Costo: $5/mese con $5 di crediti inclusi
+
+**Implicazioni per il progetto:**
+- Limitare caricamento documenti a ~10-15 PDF medi (considerando RAM constraints)
+- Ottimizzare uso memoria in ChromaDB
+- Monitorare uso risorse con comando /stats
+- Considerare cleanup periodico documenti vecchi se si raggiungono i limiti
 
 ---
 

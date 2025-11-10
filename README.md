@@ -13,21 +13,25 @@ Bot Telegram intelligente con Retrieval-Augmented Generation (RAG), LangChain ag
 - **Memory**: Ricorda le conversazioni di ogni utente
 - **Agent Intelligente**: Decide autonomamente quale strumento usare (ReAct pattern)
 
-## Quick Start (5 minuti)
+## Quick Start (10-15 minuti)
 
-### Opzione 1: Replit (Consigliato per principianti)
+### Opzione 1: Railway (Consigliato per deploy in cloud)
 
-1. **Fork questo repository** su Replit
-2. **Configura Secrets** (NON .env su Replit!):
+1. **Fork questo repository** su GitHub
+2. **Crea progetto su Railway** (railway.app)
+3. **Collega repository GitHub** al progetto Railway
+4. **Configura Environment Variables**:
    ```
    TELEGRAM_BOT_TOKEN=il_tuo_token_da_BotFather
    OPENAI_API_KEY=sk-la_tua_key_openai
    TAVILY_API_KEY=tvly-la_tua_key_tavily
    ADMIN_USER_IDS=il_tuo_telegram_user_id
    ```
-3. **Clicca RUN** - Il bot si avvia automaticamente!
+5. **Deploy automatico** - Il bot si avvia automaticamente!
 
-[Guida dettagliata Replit →](README_SETUP_REPLIT.md)
+**Nota**: Railway Hobby Plan costa $5/mese con $5 di crediti inclusi (sufficiente per uso base).
+
+[Guida dettagliata Railway →](README_SETUP_RAILWAY.md)
 
 ### Opzione 2: Locale
 
@@ -239,7 +243,7 @@ pip install -r requirements.txt
 
 ### Errore: "API key not configured"
 
-Verifica .env (locale) o Secrets (Replit) contengano le keys.
+Verifica .env (locale) o Environment Variables (Railway) contengano le keys.
 
 ### Bot non risponde
 
@@ -247,7 +251,7 @@ Verifica .env (locale) o Secrets (Replit) contengano le keys.
 2. Controlla i log per errori
 3. Verifica che l'utente sia in ADMIN_USER_IDS se usa comandi admin
 
-### ChromaDB SQLite Error (solo Replit)
+### ChromaDB SQLite Error (solo Railway o sistemi con SQLite vecchio)
 
 Il workaround è già incluso in `config.py`. Se persiste:
 ```bash
@@ -282,7 +286,7 @@ A: ChromaDB è ottimo per iniziare (zero config, local-first). Per produzione co
 A: ReAct è ottimo per apprendimento (reasoning esplicito). Alternative: OpenAI Functions, Structured Chat, Plan-and-Execute.
 
 **Q: Quanti documenti posso caricare?**
-A: Su Replit Free: ~40-50 PDF di 100 pagine (~50k chunks). In locale: dipende dal tuo storage.
+A: Su Railway Hobby Plan (0.5GB RAM): ~10-15 PDF medi. Per più documenti, considera upgrade a plan superiore o deploy locale. In locale: dipende dal tuo storage e RAM disponibile.
 
 ## Esercizi Progressivi
 

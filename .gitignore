@@ -219,6 +219,12 @@ chroma_db/
 # Uploaded documents (may contain sensitive content)
 documents/
 
+# Vector database files (SQLite)
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+
 # Bot logs
 bot.log
 *.log
@@ -226,7 +232,11 @@ bot.log
 # Local environment file (contains API keys)
 .env
 
-# Replit specific
+# Railway specific
+railway.toml
+railway.json
+
+# Replit specific (legacy - se si migra da Replit)
 .replit
 .upm
 replit.nix

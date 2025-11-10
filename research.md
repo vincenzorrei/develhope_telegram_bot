@@ -1,18 +1,18 @@
 # Analisi Tecnica Completa: Bot Telegram Educativo con RAG
 
-**Data:** 29 Ottobre 2025  
-**Autore:** Vincenzo Orrei  
-**Progetto:** Bot Telegram Educativo con RAG su Replit Free Tier
+**Data:** 29 Ottobre 2025 (Aggiornato per Railway: Gennaio 2025)
+**Autore:** Vincenzo Orrei
+**Progetto:** Bot Telegram Educativo con RAG su Railway Hobby Plan
 
 ---
 
 ## Executive Summary
 
-Ho completato un'analisi approfondita dei componenti tecnici per il progetto bot Telegram educativo con RAG. 
+Ho completato un'analisi approfondita dei componenti tecnici per il progetto bot Telegram educativo con RAG, aggiornata per deployment su Railway Hobby Plan.
 
-**La buona notizia:** Il progetto è tecnicamente fattibile su Replit Free Tier con alcune considerazioni importanti.
+**La buona notizia:** Il progetto è tecnicamente fattibile su Railway Hobby Plan con considerazioni importanti sulle limitazioni di risorse.
 
-**La sfida principale:** ChromaDB persiste correttamente su Replit, ma Tavily non risulta bloccato dalla whitelist. Il limite di 500MB è sufficiente per 40-50 PDF medi, e i costi OpenAI sono gestibili per uso educativo.
+**La sfida principale:** Railway Hobby Plan offre 0.5GB RAM e 0.5GB storage - sufficienti per 10-15 PDF medi. ChromaDB persiste correttamente, Tavily è accessibile, e i costi OpenAI sono gestibili per uso educativo. Costo totale: ~$11-12/mese (Railway $5 + OpenAI ~$6-7).
 
 ---
 
@@ -22,7 +22,7 @@ Ho completato un'analisi approfondita dei componenti tecnici per il progetto bot
 
 **Asyncio Support v20+:** La libreria ha completato la migrazione ad asyncio con la v20, offrendo migliori prestazioni per operazioni network-bound. Tutte le funzioni handler sono ora asincrone con `async def`.
 
-**Polling su Replit:** Il polling funziona perfettamente su Replit Free Tier. La modalità `infinity_polling()` è consigliata per bot long-running con gestione automatica degli errori e reconnection.
+**Polling su Railway:** Il polling funziona perfettamente su Railway Hobby Plan. La modalità `infinity_polling()` è consigliata per bot long-running con gestione automatica degli errori e reconnection.
 
 **File Upload/Download:**
 - **Bot API standard:** limite di 20MB download, 50MB upload
@@ -60,11 +60,12 @@ Nessuno critico per il caso d'uso educativo. L'unico problema potenziale è la g
 
 ### 💡 Raccomandazioni
 
-1. **Usa polling, non webhook:** Su Replit Free Tier, polling è più semplice e affidabile. Webhook richiede HTTPS e dominio pubblico.
+1. **Usa polling, non webhook:** Su Railway Hobby Plan, polling è più semplice e affidabile. Webhook richiede HTTPS e configurazione aggiuntiva.
 2. **Abilita concurrent_updates:** Essenziale per gestire più utenti/gruppi simultaneamente
 3. **Implementa timeout:** Per evitare che handler lunghi blocchino altri utenti (usa `asyncio.wait_for()`)
 4. **Gestisci gracefully gli errori:** Usa try-except in tutti gli handler per evitare crash del bot
 5. **Limita lunghezza messaggi:** Telegram ha limite di 4096 caratteri per messaggio - splitta risposte lunghe
+6. **Monitora uso RAM:** Con solo 0.5GB disponibile, implementa monitoring attivo delle risorse
 
 **Pattern Consigliato per Handler Asincroni con LangChain:**
 
@@ -234,61 +235,67 @@ async def check_quota(user_id, resource='tts', amount=0):
 
 ---
 
-## 3. Replit - Limitazioni & ChromaDB
+## 3. Railway - Limitazioni & ChromaDB
 
 ### ✅ Filesystem & Persistenza
 
-**Storage Permanente CONFERMATO:**
-- **Replit Free Tier:** 10 GiB storage totale account (aggiornato da 500MB)
-- **Per Repl:** 2 GiB storage per singolo Repl
-- **Persistenza:** Files in `~/` sono permanenti, survive a restart
+**Storage su Railway Hobby Plan:**
+- **RAM:** 0.5 GB per servizio
+- **vCPU:** 1 vCPU
+- **Storage Volume:** 0.5 GB (persistente)
+- **Costo:** $5/mese con $5 di crediti inclusi
+- **Persistenza:** Files in volumes montati persistono tra deploy
 
 **ChromaDB Persistence:**
 
 ```python
 import chromadb
 
-# FUNZIONA su Replit - path relativo in home dir
+# FUNZIONA su Railway - path su volume persistente
 client = chromadb.PersistentClient(path="./chroma_data")
 ```
 
-La directory `./chroma_data` sarà persistita e sopravviverà ai restart del Repl.
+La directory `./chroma_data` sarà persistita su volume Railway e sopravviverà ai restart e re-deploy.
 
 ### ✅ Stima Capacità Documenti
 
-**ChromaDB Disk Usage Formula:**
+**ChromaDB Resource Usage Formula:**
 
 ```
 RAM Required = n_vectors × dimensionality × 4 bytes
 Disk Required = 2-4× RAM (per metadata, WAL, indexes)
 ```
 
-**Calcolo Realistico per text-embedding-3-small (1536 dim):**
+**Calcolo Realistico per text-embedding-3-small (1536 dim) su Railway:**
 
-| Componente | Calcolo | Dimensione |
-|------------|---------|------------|
-| 10 PDF (100 pagine) | File originali | ~50MB |
-| Chunks da 10 PDF | ~500 chunks/PDF = 5,000 chunks | - |
-| Embeddings RAM | 5,000 × 1,536 × 4 bytes | ~30MB |
-| ChromaDB Disk (3x RAM) | 30MB × 3 | ~90MB |
-| Codice + Librerie | Python + deps | ~100MB |
-| **TOTALE Stimato** | | **~270MB** |
+| Componente | Calcolo | Dimensione RAM | Dimensione Disk |
+|------------|---------|----------------|-----------------|
+| 5 PDF (100 pagine) | File originali | - | ~25MB |
+| Chunks da 5 PDF | ~500 chunks/PDF = 2,500 chunks | - | - |
+| Embeddings RAM | 2,500 × 1,536 × 4 bytes | ~15MB | - |
+| ChromaDB Disk (3x RAM) | 15MB × 3 | - | ~45MB |
+| Codice + Librerie | Python + deps | ~150MB | ~50MB |
+| Bot Runtime | Telegram bot + LangChain | ~100MB | - |
+| **TOTALE Stimato** | | **~265MB RAM** | **~120MB Disk** |
 
-**Capacità Massima Realistico su Replit Free (2GB/Repl):**
+**Capacità Massima Realistico su Railway Hobby Plan:**
 
 ```
-Spazio disponibile: 2000MB - 100MB (codice) = 1900MB
-Per documenti: 1900MB / 19MB per 10 PDF ≈ 100 PDF batch
-= circa 50,000 chunks totali
+RAM disponibile: 500MB - 150MB (base) - 100MB (runtime) = 250MB disponibile
+Per embeddings: 250MB / 15MB per 5 PDF ≈ 15 PDF totali
+Disk disponibile: 500MB - 50MB (codice) = 450MB
+Per documenti+DB: 450MB / 70MB per 5 PDF ≈ 30 PDF (limitato da RAM)
 ```
 
-**Realistico Target Sicuro:** 40-50 PDF di 100 pagine (4000-5000 pagine totali).
+**Target Sicuro per Railway Hobby Plan:** 10-15 PDF di 100 pagine (~1000-1500 pagine totali)
+
+**Nota Critica:** Il limite è la RAM (0.5GB), non il disk storage!
 
 ### ⚠️ SQLite Version Workaround
 
-**PROBLEMA NOTO:** Replit usa SQLite 3.31.1, ChromaDB richiede ≥3.35.0
+**PROBLEMA POTENZIALE:** Alcuni sistemi (incluso Railway) potrebbero avere SQLite < 3.35.0, richiesto da ChromaDB
 
-**SOLUZIONE Confermata:**
+**SOLUZIONE Confermata (applicare preventivamente):**
 
 ```python
 # All'INIZIO del file, PRIMA di import chromadb
@@ -307,32 +314,34 @@ pysqlite3-binary
 chromadb
 ```
 
+**Nota Railway:** Railway generalmente ha SQLite aggiornato, ma il workaround non crea problemi se applicato preventivamente.
+
 ### ✅ Network & API Access
 
-**Replit Network Policy:**
-- Free tier può fare outbound requests a qualsiasi dominio
-- Limite: 10 GiB/mese outbound data transfer
-- **Tavily API:** ACCESSIBILE da Replit (nessuna whitelist restriction trovata)
+**Railway Network Policy:**
+- Hobby Plan può fare outbound requests senza restrizioni
+- Egress (dati in uscita): $0.05 per GB oltre i crediti inclusi
+- **Tavily API:** ACCESSIBILE da Railway (nessuna restriction)
 
 **Bandwidth Consumption Stima:**
 
 ```
 OpenAI API calls: ~1KB request + 2KB response = 3KB/query
 Tavily API: ~5KB/search
-100 utenti × 20 query/giorno × 30 giorni × 3KB ≈ 180MB/mese
-Ben sotto il limite di 10GB.
+50 utenti × 15 query/giorno × 30 giorni × 3KB ≈ 68MB/mese
+Egress cost: trascurabile (ben sotto soglia gratuita)
 ```
 
 ### ⚠️ Performance & Limitazioni
 
-**CPU/RAM Free Tier:**
+**CPU/RAM Railway Hobby Plan:**
 - 1 vCPU
-- 2 GiB RAM
-- Sufficiente per ChromaDB con 40-50 PDF
+- 0.5 GiB RAM (CRITICO!)
+- Sufficiente per ChromaDB con 10-15 PDF
 
-**ChromaDB Query Speed:** Con 5000 chunks, query speed ~50-200ms su hardware moderno. Su Replit potrebbe essere 2-3x più lento ma accettabile.
+**ChromaDB Query Speed:** Con 2500 chunks, query speed ~50-200ms. Railway offre buone performance I/O.
 
-**Sleep Mode:** Repl su Free Tier va in sleep dopo inattività. Si risveglia automaticamente con primo messaggio (latency ~3-5 secondi). Per bot educativo è accettabile.
+**Always-On:** Railway Hobby Plan mantiene il servizio sempre attivo (no sleep mode). Prima richiesta ha stessa latency delle successive.
 
 ### ❌ Blockers Trovati
 
@@ -340,7 +349,7 @@ Nessuno bloccante per il progetto. Workaround SQLite risolve il principale ostac
 
 ### 🔗 Documentazione Utile
 
-- Replit Storage Documentation
+- Railway Documentation
 - ChromaDB Persistent Client
 - SQLite Troubleshooting ChromaDB
 
@@ -367,29 +376,44 @@ client = chromadb.PersistentClient(
 )
 ```
 
-**Storage Management:**
-- **Monitoraggio:** Controlla usage con `du -sh chroma_db/` periodicamente
-- **Cleanup Strategy:** Implementa comando admin per eliminare vecchie collection
-- **Backup:** Usa Replit's built-in backup (fork del Repl) prima di modifiche grosse
-- **Limits:** Implementa hard limit nel bot (es: max 50 PDF, mostra errore se superato)
+**Storage & RAM Management:**
+- **Monitoraggio:** Controlla usage RAM con `/stats` command
+- **Cleanup Strategy:** Implementa comando admin per eliminare vecchi documenti
+- **Backup:** Usa Railway's database backups prima di modifiche critiche
+- **Limits:** Implementa hard limit nel bot (es: max 15 PDF, mostra errore se superato)
+- **RAM Alert:** Warning quando RAM usage > 400MB (80% di 512MB)
 
-**Dimensioning Documents:**
+**Dimensioning Documents & RAM Monitoring:**
 
 ```python
 import os
+import psutil
 
-def check_storage_capacity():
-    db_size = sum(os.path.getsize(f) 
-                  for f in os.scandir('./chroma_db') 
+def check_resource_capacity():
+    # Disk usage
+    db_size = sum(os.path.getsize(f)
+                  for f in os.scandir('./chroma_db')
                   if f.is_file()) / (1024**2)  # MB
-    
-    available = 1900 - db_size  # 1900MB safe limit
-    docs_capacity = int(available / 19)  # 19MB per 10 docs
-    
+
+    # RAM usage
+    process = psutil.Process(os.getpid())
+    ram_usage_mb = process.memory_info().rss / (1024**2)
+
+    # Calculations (Railway limits: 512MB RAM, 512MB Disk)
+    ram_available = 512 - ram_usage_mb
+    disk_available = 512 - db_size - 50  # 50MB per codice
+
+    # Estimate capacity (limited by RAM)
+    docs_remaining = int(ram_available / 15)  # ~15MB RAM per 5 PDF
+
     return {
-        'used_mb': db_size,
-        'available_mb': available,
-        'estimated_docs_remaining': docs_capacity * 10
+        'ram_used_mb': round(ram_usage_mb, 2),
+        'ram_available_mb': round(ram_available, 2),
+        'ram_percent': round((ram_usage_mb / 512) * 100, 1),
+        'disk_used_mb': round(db_size, 2),
+        'disk_available_mb': round(disk_available, 2),
+        'estimated_docs_remaining': docs_remaining * 5,
+        'warning': ram_usage_mb > 400  # 80% threshold
     }
 ```
 
@@ -727,7 +751,7 @@ print(pages[0].metadata)  # {'source': 'document.pdf', 'page': 0}
   - Proper await chain
   - Timeout handling
 
-- **Memory Management:** RAG pipeline carica embeddings in RAM. Con 50k chunks, ~150MB RAM. Su Replit (2GB total), rimane ~1.8GB per Python + bot.
+- **Memory Management:** RAG pipeline carica embeddings in RAM. Con 2.5k chunks, ~15MB RAM. Su Railway Hobby (512MB total), rimangono ~250MB disponibili per embeddings aggiuntivi.
 
 ### 💡 Raccomandazioni
 
@@ -851,23 +875,31 @@ chunks_per_query = 3-5
 
 ### ✅ Pre-Development Setup
 
-**Replit Configuration:**
+**Railway Configuration:**
 
-1. Crea nuovo Python Repl
-2. Configura `.replit` file:
+1. Crea nuovo progetto su Railway
+2. Collega repository GitHub
+3. Configura `railway.toml` (opzionale):
 
+```toml
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "python main.py"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
 ```
-run = "python main.py"
-modules = ["python-3.11"]
 
-[nix]
-channel = "stable-24_05"
-```
-
-3. Aggiungi Secrets (non `.env` file!):
+4. Aggiungi Environment Variables nel dashboard Railway:
    - `TELEGRAM_BOT_TOKEN`
    - `OPENAI_API_KEY`
    - `TAVILY_API_KEY`
+   - `ADMIN_USER_IDS`
+
+5. Configura Volume per persistenza (se necessario):
+   - Mount path: `/app/data`
+   - Usa path relativo `./data` nel codice
 
 **requirements.txt (Versioni testate):**
 
@@ -1086,11 +1118,11 @@ async def admin_clear_db(update, context):
 
 ### ⚠️ Medium Priority Issues
 
-**Replit Sleep Mode on Free Tier:**
-- Bot va in sleep dopo ~1h inattività
-- Primo messaggio dopo sleep: latency ~5s (cold start)
-- **Mitigation:** Avvisa utenti di questo delay la prima volta
-- **Alternative:** Upgrade a Hacker plan per always-on
+**Railway RAM Constraints:**
+- Solo 512MB RAM disponibile (limite principale)
+- Necessario monitoraggio attivo memoria
+- **Mitigation:** Implementa cleanup automatico, limita documenti a 15
+- **Alternative:** Upgrade a plan superiore per più RAM (es. $10/mese per 1GB)
 
 **OpenAI Rate Limits (Tier-dependent):**
 - Free tier: molto limitato (non raccomandato per production)
@@ -1099,8 +1131,8 @@ async def admin_clear_db(update, context):
 
 **Telegram Bot API 409 Conflict:**
 - Error se multiple istanze bot con stesso token running
-- Su Replit: assicurati solo 1 Repl running
-- **Debug:** Check con `ps aux | grep python`
+- Su Railway: verifica solo 1 deployment attivo
+- **Debug:** Check Railway dashboard per deployments multipli
 
 ### 💡 Best Practices per Evitare Issues
 
@@ -1166,20 +1198,23 @@ async def health_check():
 
 ### ✅ Progetto È FATTIBILE
 
-**Verdict:** Il progetto è tecnicamente fattibile su Replit Free Tier con le seguenti considerazioni:
+**Verdict:** Il progetto è tecnicamente fattibile su Railway Hobby Plan con le seguenti considerazioni:
 
 **GO Decision Factors:**
-- ✅ ChromaDB persiste correttamente con workaround SQLite
-- ✅ 2GB storage sufficient per 40-50 PDF target
-- ✅ Tavily accessibile da Replit (no whitelist blocks)
-- ✅ Costi operativi bassi senza TTS ($6-7/mese)
+- ✅ ChromaDB persiste correttamente su volumes
+- ✅ 512MB RAM + 512MB storage sufficienti per 10-15 PDF
+- ✅ Tavily accessibile da Railway (no restrictions)
+- ✅ Costi totali prevedibili: ~$11-12/mese (Railway $5 + OpenAI ~$6-7)
 - ✅ python-telegram-bot v20 async stable e performante
 - ✅ LangChain + ChromaDB 0.5.x compatibility confirmed
+- ✅ Always-on (no sleep mode) - migliore UX
 
 **CAUTION Decision Factors:**
+- ⚠️ RAM è il limite principale (solo 512MB)
+- ⚠️ Necessario monitoring attivo risorse
+- ⚠️ Max 10-15 PDF (vs 40-50 su sistemi con più RAM)
 - ⚠️ TTS opzionale troppo costoso per uso frequente ($90/mese)
 - ⚠️ ChromaDB 1.0 non compatibile con LangChain (usare 0.5.x)
-- ⚠️ Sleep mode su Free Tier (cold start 5s)
 - ⚠️ Vision same cost as text generation (no savings)
 
 ### 🎯 Implementation Roadmap
@@ -1187,12 +1222,14 @@ async def health_check():
 **Phase 1: MVP (Week 1-2)**
 
 ```
-✓ Setup Replit environment + SQLite workaround
+✓ Setup Railway project + environment variables
+✓ Configure persistent volume per ChromaDB
+✓ SQLite workaround (preventivo)
 ✓ Implement basic bot handlers (/start, /help, /upload)
 ✓ ChromaDB integration con persistent storage
 ✓ PyMuPDF document ingestion pipeline
 ✓ Basic RAG query (no routing)
-✓ Admin commands (/stats, /list_docs)
+✓ Admin commands (/stats con RAM monitoring, /list_docs)
 ```
 
 **Phase 2: Agent Routing (Week 3)**
@@ -1216,39 +1253,43 @@ async def health_check():
 
 ### 📊 Sizing Recommendations
 
-**Conservative Approach (Per Neofiti):**
-- **Start:** 10 PDF
-- **Add:** 5 PDF/week monitoring storage
-- **Max target:** 30-40 PDF
+**Conservative Approach (Railway Hobby Plan):**
+- **Start:** 5 PDF
+- **Add:** 2-3 PDF/week monitoring RAM
+- **Max target:** 10-15 PDF (LIMITE RAM!)
 - **Chunk size:** 800 characters
 - **Overlap:** 100 characters
 
-**Storage Budget:**
+**Resource Budget:**
 
 ```
-Soft Limit: 1500 MB (75% di 2GB Repl)
-Hard Limit: 1900 MB (95%, alert admin)
-Emergency: 2000 MB (block uploads)
+RAM Soft Limit: 400 MB (78% di 512MB)
+RAM Hard Limit: 460 MB (90%, alert admin)
+RAM Emergency: 500 MB (block uploads)
+
+Disk Soft Limit: 400 MB (78% di 512MB)
+Disk Hard Limit: 480 MB (94%, cleanup)
 ```
 
 ### 🛠️ Alternative Architectures (Se Limiti Non Bastano)
 
-**Option A: Upgrade Replit Hacker Plan**
-- **Cost:** $20/mese
-- **Benefit:** 20GB storage, always-on, no sleep
-- **When:** Se >50 PDF necessari O se serve 24/7 uptime
+**Option A: Upgrade Railway Plan**
+- **Developer Plan ($10/mese):** 1GB RAM, 1GB storage, $10 crediti
+- **Team Plan ($20/mese):** 2GB RAM, 2GB storage, $20 crediti
+- **When:** Se >15 PDF necessari O serve più concurrent users
 
-**Option B: Hybrid Replit + External Vector DB**
-- Bot on Replit Free
-- ChromaDB su Render/Railway free tier (separate)
-- Connessione via HTTP
-- **Cost:** $0 se entrambi free tier, ma più complesso
+**Option B: Hybrid Railway + External Vector DB**
+- Bot su Railway Hobby
+- ChromaDB su servizio managed separato (Pinecone/Weaviate/Qdrant free tier)
+- Connessione via API
+- **Cost:** Free tier vector DB + Railway $5
+- **Benefit:** Scalabilità vector store indipendente
 
-**Option C: Self-Hosted ChromaDB Server**
-- Bot su Replit
-- ChromaDB server su Raspberry Pi/VPS
-- **Cost:** One-time hardware o $5/mese VPS
-- **Benefit:** No storage limits
+**Option C: Deploy Locale + Railway per production**
+- Sviluppo locale senza limiti RAM
+- Deploy su Railway solo per produzione
+- **Cost:** Railway $5/mese solo per production
+- **Benefit:** Development più veloce, testing completo
 
 ### 📚 Learning Resources per Studenti Neofiti
 
@@ -1262,7 +1303,7 @@ Emergency: 2000 MB (block uploads)
 - Usa `logging.DEBUG` per vedere tutti i passaggi
 - Test ChromaDB separatamente prima di integrare con bot
 - Mock OpenAI responses in dev per risparmiare costi
-- Usa `.env` file locale, Secrets su Replit
+- Usa `.env` file locale, Environment Variables su Railway
 
 ### ⚡ Performance Optimization Checklist
 
@@ -1291,8 +1332,8 @@ Emergency: 2000 MB (block uploads)
 ```
 # ==========================================
 # TELEGRAM BOT RAG - PRODUCTION REQUIREMENTS
-# Tested on: Python 3.11, Replit Free Tier
-# Last Updated: 2025-10-29
+# Tested on: Python 3.11, Railway Hobby Plan
+# Last Updated: 2025-01-06
 # ==========================================
 
 # SQLite Workaround (MUST BE FIRST!)
@@ -1341,7 +1382,7 @@ aiohttp==3.10.5  # Async HTTP
 **Installation Instructions:**
 
 ```bash
-# On Replit: paste in requirements.txt, auto-install on run
+# On Railway: add requirements.txt to root, auto-install on deploy
 # Locally:
 pip install -r requirements.txt
 
@@ -1353,21 +1394,32 @@ python -c "import chromadb; print(chromadb.__version__)"  # Should be 0.5.5
 
 ## Conclusioni
 
-Il progetto **Telegram AI Bot educativo con RAG** è completamente fattibile su Replit Free Tier seguendo le raccomandazioni in questo report. I componenti chiave (python-telegram-bot, ChromaDB, LangChain, Tavily) sono tutti compatibili con workaround minimi e ben documentati.
+Il progetto **Telegram AI Bot educativo con RAG** è completamente fattibile su Railway Hobby Plan seguendo le raccomandazioni in questo report. I componenti chiave (python-telegram-bot, ChromaDB, LangChain, Tavily) sono tutti compatibili con la piattaforma.
 
 ### Key Takeaways:
 
-- **Storage:** 2GB/Repl sufficienti per 40-50 PDF (4000-5000 pagine)
-- **Costi:** ~$6-7/mese operativi senza TTS, ~$98/mese con TTS (evitare per studenti)
-- **Performance:** Accettabile per uso educativo, query ~1-3 secondi
+- **Risorse:** 512MB RAM + 512MB storage - sufficienti per 10-15 PDF medi
+- **Limite principale:** RAM (non disk storage) - richiede monitoring attivo
+- **Costi:** ~$11-12/mese totali (Railway $5 + OpenAI ~$6-7), no TTS
+- **Performance:** Buona per uso educativo, query ~1-3 secondi
+- **Always-on:** No sleep mode (migliore UX rispetto a free tiers competitors)
 - **Compatibility:** Usare ChromaDB 0.5.x (non 1.0) per LangChain compatibility
-- **Workarounds:** Solo SQLite pysqlite3-binary workaround necessario
+- **Workarounds:** SQLite pysqlite3-binary (preventivo, probabilmente non necessario)
 
 ### Rischi Principali:
 
-- ChromaDB 1.0 incompatibility temporanea (risolverà Q1 2025)
+- **RAM constraints:** Solo 512MB - limite critico per scaling
+- **Necessario upgrade** se >15 PDF o >50 concurrent users
+- ChromaDB 1.0 incompatibility temporanea con LangChain (risolverà Q1 2025)
 - TTS costi elevati (rendere opt-in)
-- Sleep mode su Free Tier (upgrade a Hacker se necessario 24/7)
+
+### Vantaggi Railway vs Free Alternatives:
+
+- ✅ Always-on (no sleep mode come Replit Free)
+- ✅ Deployment automatico da GitHub
+- ✅ Buone performance I/O
+- ✅ Logs e monitoring integrati
+- ✅ Scalabilità facile (upgrade plan quando serve)
 
 ### Go/No-Go: **GO ✅**
 
@@ -1416,10 +1468,11 @@ langchain-openai==0.2.8
 tiktoken==0.8.0
 ```
 
-**Secrets (Replit):**
+**Environment Variables (Railway):**
 ```bash
 OPENAI_API_KEY=sk-...
 TELEGRAM_BOT_TOKEN=...
+ADMIN_USER_IDS=123456789
 ```
 
 **Storage:** ~6KB/user (2GB = 300k utenti)
@@ -1734,11 +1787,12 @@ async def process_query_with_memory(query: str, chat_history, user_id: int):
 
 ```bash
 ✅ File structure completo (4 files)
-✅ Secrets configurati in Replit
+✅ Environment Variables configurate in Railway
 ✅ Dependencies installed: pip install -r requirements.txt
-✅ SQLite workaround (se Replit): pysqlite3
+✅ SQLite workaround (preventivo): pysqlite3
+✅ Volume configurato per persistenza (se necessario)
 ✅ Test: short-term, summarization, persistenza
-✅ Monitoring: watch -n 60 'du -sh user_memories/'
+✅ Monitoring RAM: implementato nel /stats command
 ```
 
 ---
@@ -1765,4 +1819,4 @@ async def process_query_with_memory(query: str, chat_history, user_id: int):
 **Storage:** 6KB/user (300k utenti su 2GB)  
 **Performance:** +50ms overhead (trascurabile)
 
-✅ Production-ready per bot educativo su Replit Free Tier!
+✅ Production-ready per bot educativo su Railway Hobby Plan!

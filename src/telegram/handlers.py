@@ -40,11 +40,12 @@ async def add_doc_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Admin only. Avvia processo upload documento.
     """
     await update.message.reply_text(
-        "Invia il documento (PDF, DOCX, o TXT) che vuoi caricare.\n\n"
+        "Invia il documento che vuoi caricare.\n\n"
         "Formati supportati:\n"
         "- PDF (.pdf)\n"
         "- Word (.docx)\n"
-        "- Testo (.txt)\n\n"
+        "- Testo (.txt)\n"
+        "- Markdown (.md)\n\n"
         "Max dimensione: 20MB"
     )
 
@@ -138,6 +139,16 @@ async def document_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         logger.info(f"[SUCCESS] Document added: {doc_id}")
 
+        # ========================================
+        # REFRESH AGENT: Aggiorna tool descriptions e system prompt
+        # ========================================
+        # Dopo l'aggiunta di un nuovo documento, ricrea l'agent per
+        # assicurare che le tool descriptions includano il nuovo documento
+        langchain_engine = context.bot_data.get('langchain_engine')
+        if langchain_engine:
+            langchain_engine.refresh_agent()
+            logger.info("[REFRESH] Agent refreshed after document addition")
+
     except Exception as e:
         logger.error(f"[ERROR] Document processing failed: {e}")
         import traceback
@@ -188,6 +199,10 @@ async def delete_doc_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     /delete_doc <doc_id> - Elimina documento.
 
     Admin only. Usage: /delete_doc doc_123456
+
+    Elimina:
+    1. Tutti i chunks dal vector store
+    2. File fisico dalla cartella data/documents/
     """
     if not context.args:
         await update.message.reply_text(
@@ -207,20 +222,211 @@ async def delete_doc_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await update.message.reply_text(f"Documento '{doc_id}' non trovato.")
             return
 
-        # Delete
+        # ========================================
+        # Step 1: Delete from vector store
+        # ========================================
         num_deleted = vector_store.delete_document(doc_id)
 
-        await update.message.reply_text(
-            prompts.DOCUMENT_DELETED_SUCCESS.format(
-                doc_id=doc_id,
-                filename=doc_info['source']
-            )
+        # ========================================
+        # Step 2: Delete physical file from data/documents/
+        # ========================================
+        from config import paths_config
+        from pathlib import Path
+
+        documents_dir = Path(paths_config.DOCUMENTS_DIR)
+        deleted_files = []
+
+        # Find and delete all files starting with doc_id_
+        for filepath in documents_dir.glob(f"{doc_id}_*"):
+            try:
+                filepath.unlink()  # Delete file
+                deleted_files.append(filepath.name)
+                logger.info(f"[DELETE] Removed physical file: {filepath.name}")
+            except Exception as e:
+                logger.warning(f"[WARN] Could not delete file {filepath.name}: {e}")
+
+        # Success message
+        message = prompts.DOCUMENT_DELETED_SUCCESS.format(
+            doc_id=doc_id,
+            filename=doc_info['source']
         )
 
-        logger.info(f"[DELETE] Document {doc_id} ({num_deleted} chunks)")
+        if deleted_files:
+            message += f"\n\nFile eliminato: <code>{deleted_files[0]}</code>"
+
+        await update.message.reply_text(message, parse_mode='HTML')
+
+        logger.info(f"[DELETE] Document {doc_id} ({num_deleted} chunks, {len(deleted_files)} files)")
+
+        # ========================================
+        # REFRESH AGENT: Aggiorna tool descriptions e system prompt
+        # ========================================
+        # Dopo l'eliminazione di un documento, ricrea l'agent per
+        # assicurare che le tool descriptions riflettano i documenti attuali
+        langchain_engine = context.bot_data.get('langchain_engine')
+        if langchain_engine:
+            langchain_engine.refresh_agent()
+            logger.info("[REFRESH] Agent refreshed after document deletion")
 
     except Exception as e:
         logger.error(f"[ERROR] Delete doc failed: {e}")
+        import traceback
+        traceback.print_exc()
+        await update.message.reply_text(f"Errore: {str(e)}")
+
+
+@admin_only
+async def get_doc_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /get_doc <doc_id> - Scarica il documento originale.
+
+    Admin only. Usage: /get_doc doc_123456
+
+    Invia il file fisico del documento all'admin.
+    """
+    if not context.args:
+        await update.message.reply_text(
+            "Usage: /get_doc <doc_id>\n\n"
+            "Usa /list_docs per vedere gli ID documenti."
+        )
+        return
+
+    doc_id = context.args[0]
+    vector_store = context.bot_data['vector_store']
+
+    try:
+        # Verifica che il documento esista nel vector store
+        doc_info = vector_store.get_document_info(doc_id)
+
+        if not doc_info:
+            await update.message.reply_text(f"Documento '{doc_id}' non trovato.")
+            return
+
+        # ========================================
+        # Find physical file in data/documents/
+        # ========================================
+        from config import paths_config
+        from pathlib import Path
+
+        documents_dir = Path(paths_config.DOCUMENTS_DIR)
+
+        # Find file starting with doc_id_
+        matching_files = list(documents_dir.glob(f"{doc_id}_*"))
+
+        if not matching_files:
+            await update.message.reply_text(
+                f"⚠️ Documento '{doc_id}' trovato nel database ma file fisico non presente.\n\n"
+                f"Nome originale: <code>{doc_info['source']}</code>",
+                parse_mode='HTML'
+            )
+            logger.warning(f"[GET_DOC] File not found for {doc_id}")
+            return
+
+        # Get first matching file
+        filepath = matching_files[0]
+
+        logger.info(f"[GET_DOC] Sending document: {filepath.name}")
+
+        # ========================================
+        # Send document to admin
+        # ========================================
+        await update.message.reply_text("📤 Invio documento...")
+
+        with open(filepath, 'rb') as doc_file:
+            await update.message.reply_document(
+                document=doc_file,
+                filename=doc_info['source'],  # Use original filename
+                caption=f"📄 Documento: <b>{doc_info['source']}</b>\n"
+                        f"ID: <code>{doc_id}</code>\n"
+                        f"Chunks: {doc_info['num_chunks']}\n"
+                        f"Data: {doc_info['timestamp'][:10]}",
+                parse_mode='HTML'
+            )
+
+        logger.info(f"[GET_DOC] Document sent successfully: {doc_id}")
+
+    except Exception as e:
+        logger.error(f"[ERROR] Get doc failed: {e}")
+        import traceback
+        traceback.print_exc()
+        await update.message.reply_text(f"Errore: {str(e)}")
+
+
+@admin_only
+async def modify_summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /modify_summary <doc_id> <nuovo_summary> - Modifica il sommario di un documento.
+
+    Admin only. Usage: /modify_summary doc_123456 Nuovo sommario del documento
+
+    Il sommario viene visualizzato in /list_docs e aiuta l'agent a decidere
+    quando usare il RAG tool per le query.
+    """
+    if not context.args or len(context.args) < 2:
+        await update.message.reply_text(
+            "Usage: /modify_summary <doc_id> <nuovo_summary>\n\n"
+            "Esempio:\n"
+            "<code>/modify_summary doc_12345 Guida Python - variabili, funzioni, classi</code>\n\n"
+            "Usa /list_docs per vedere gli ID documenti.",
+            parse_mode='HTML'
+        )
+        return
+
+    doc_id = context.args[0]
+    # Join all remaining args as the new summary
+    new_summary = " ".join(context.args[1:])
+
+    vector_store = context.bot_data['vector_store']
+
+    try:
+        # Verifica che il documento esista
+        doc_info = vector_store.get_document_info(doc_id)
+
+        if not doc_info:
+            await update.message.reply_text(f"Documento '{doc_id}' non trovato.")
+            return
+
+        # Show current summary
+        old_summary = doc_info.get('summary', 'No summary')
+
+        await update.message.reply_text(
+            f"🔄 Aggiornamento sommario per: <b>{doc_info['source']}</b>\n\n"
+            f"<b>Sommario attuale:</b>\n<i>{old_summary}</i>\n\n"
+            f"<b>Nuovo sommario:</b>\n<i>{new_summary}</i>\n\n"
+            f"Aggiornamento in corso...",
+            parse_mode='HTML'
+        )
+
+        # ========================================
+        # Update summary in vector store
+        # ========================================
+        num_updated = vector_store.update_document_summary(doc_id, new_summary)
+
+        await update.message.reply_text(
+            f"✅ Sommario aggiornato con successo!\n\n"
+            f"📄 Documento: <b>{doc_info['source']}</b>\n"
+            f"🆔 ID: <code>{doc_id}</code>\n"
+            f"🔢 Chunks aggiornati: {num_updated}\n\n"
+            f"<b>Nuovo sommario:</b>\n<i>{new_summary}</i>",
+            parse_mode='HTML'
+        )
+
+        logger.info(f"[MODIFY_SUMMARY] Updated summary for {doc_id} ({num_updated} chunks)")
+
+        # ========================================
+        # REFRESH AGENT: Aggiorna tool descriptions e system prompt
+        # ========================================
+        # Dopo la modifica del sommario, ricrea l'agent per
+        # assicurare che le tool descriptions riflettano i sommari aggiornati
+        langchain_engine = context.bot_data.get('langchain_engine')
+        if langchain_engine:
+            langchain_engine.refresh_agent()
+            logger.info("[REFRESH] Agent refreshed after summary modification")
+
+    except Exception as e:
+        logger.error(f"[ERROR] Modify summary failed: {e}")
+        import traceback
+        traceback.print_exc()
         await update.message.reply_text(f"Errore: {str(e)}")
 
 
@@ -259,6 +465,67 @@ async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"[ERROR] Stats failed: {e}")
+        await update.message.reply_text(f"Errore: {str(e)}")
+
+
+@admin_only
+async def memory_stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /memory_stats - Mostra statistiche memoria conversazionale.
+
+    Visualizza:
+    - Users in RAM / Total users
+    - RAM usage stimato (MB)
+    - Disk usage (MB)
+    - Summarizations count
+    - Evictions count
+
+    Admin only.
+    """
+    langchain_engine = context.bot_data.get('langchain_engine')
+
+    if not langchain_engine:
+        await update.message.reply_text("⚠️ Engine non inizializzato")
+        return
+
+    try:
+        # Get stats da IntelligentMemoryManager
+        stats = langchain_engine.memory_manager.get_stats()
+
+        # Format message
+        message = f"""📊 **Statistiche Memoria Conversazionale**
+
+👥 **Utenti**
+   • In RAM: {stats['users_in_ram']}/{stats['max_cached_users']}
+   • Totale su disco: {stats['total_users']}
+
+💾 **RAM Usage**
+   • Tokens stimati: {stats['estimated_tokens']}
+   • RAM stimata: {stats['estimated_ram_mb']} MB
+
+💿 **Disk Usage**
+   • Spazio conversazioni: {stats['disk_usage_mb']} MB
+
+🔄 **Operations**
+   • Summarizations: {stats['summarizations_count']}
+   • Evictions da RAM: {stats['evictions_count']}
+
+⚙️ **Configuration**
+   • Token limit: {langchain_engine.memory_manager.token_limit}
+   • Save interval: ogni {langchain_engine.memory_manager.save_interval} msg
+   • Max cached: {stats['max_cached_users']} users
+
+💡 **Health Status**
+RAM: {'✅ OK' if stats['estimated_ram_mb'] < 400 else '⚠️ HIGH'}
+Disk: {'✅ OK' if stats['disk_usage_mb'] < 450 else '⚠️ HIGH'}
+"""
+
+        await update.message.reply_text(message, parse_mode='Markdown')
+
+    except Exception as e:
+        logger.error(f"[ERROR] Memory stats failed: {e}")
+        import traceback
+        traceback.print_exc()
         await update.message.reply_text(f"Errore: {str(e)}")
 
 
@@ -529,7 +796,10 @@ def setup_handlers(app, langchain_engine, vector_store, document_processor, mess
     app.add_handler(CommandHandler("add_doc", add_doc_handler))
     app.add_handler(CommandHandler("list_docs", list_docs_handler))
     app.add_handler(CommandHandler("delete_doc", delete_doc_handler))
+    app.add_handler(CommandHandler("get_doc", get_doc_handler))
+    app.add_handler(CommandHandler("modify_summary", modify_summary_handler))
     app.add_handler(CommandHandler("stats", stats_handler))
+    app.add_handler(CommandHandler("memory_stats", memory_stats_handler))
 
     # ========================================
     # User Command Handlers
@@ -568,7 +838,7 @@ def setup_handlers(app, langchain_engine, vector_store, document_processor, mess
     ))
 
     logger.info("[OK] All handlers registered")
-    logger.info("      Admin: 4 commands")
+    logger.info("      Admin: 7 commands")
     logger.info("      User: 5 commands")
     logger.info("      Message: 4 types (text, voice, image, document)")
 

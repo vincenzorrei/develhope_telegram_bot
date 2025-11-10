@@ -438,6 +438,56 @@ class VectorStoreManager:
                 "storage_size_mb": 0.0
             }
 
+    def update_document_summary(self, doc_id: str, new_summary: str) -> int:
+        """
+        Aggiorna il sommario di tutti i chunks di un documento.
+
+        Args:
+            doc_id: ID del documento
+            new_summary: Nuovo sommario da applicare
+
+        Returns:
+            Numero di chunks aggiornati
+
+        Example:
+            >>> updated = vs.update_document_summary("doc_123", "Nuovo sommario")
+            >>> print(f"Aggiornati {updated} chunks")
+        """
+        logger.info(f"🔄 Aggiornamento sommario per '{doc_id}'...")
+
+        try:
+            # Get all chunks for this document
+            results = self.collection.get(
+                where={"doc_id": doc_id}
+            )
+
+            if not results or not results['ids']:
+                logger.warning(f"⚠️  Documento '{doc_id}' non trovato")
+                return 0
+
+            num_chunks = len(results['ids'])
+
+            # Update metadata for each chunk
+            for i, chunk_id in enumerate(results['ids']):
+                # Get current metadata
+                current_metadata = results['metadatas'][i]
+
+                # Update summary field
+                current_metadata['summary'] = new_summary
+
+                # Update chunk with new metadata
+                self.collection.update(
+                    ids=[chunk_id],
+                    metadatas=[current_metadata]
+                )
+
+            logger.info(f"✅ Sommario aggiornato per {num_chunks} chunks")
+            return num_chunks
+
+        except Exception as e:
+            logger.error(f"❌ Errore aggiornamento sommario: {e}")
+            raise
+
     def clear_all(self) -> bool:
         """
         DANGER: Elimina tutti i dati dal vector store.

@@ -2,7 +2,7 @@
 Configuration Module - MUST be imported first!
 
 Questo modulo contiene tutte le configurazioni del bot Telegram educativo.
-IMPORTANTE: Include il workaround SQLite per ChromaDB su Replit.
+IMPORTANTE: Include il workaround SQLite per ChromaDB (preventivo per Railway e altri sistemi).
 
 Gli studenti possono modificare questo file per personalizzare:
 - Admin user IDs
@@ -13,8 +13,9 @@ Gli studenti possono modificare questo file per personalizzare:
 """
 
 # ============================================
-# CRITICAL: SQLite Workaround per Replit
+# CRITICAL: SQLite Workaround (Preventivo)
 # MUST be BEFORE any chromadb imports
+# Necessario per alcuni sistemi con SQLite < 3.35.0
 # ============================================
 import sys
 try:
@@ -44,7 +45,7 @@ class APIKeys:
     """
     Gestione API keys da environment variables.
 
-    Su Replit: usa Secrets invece di .env
+    Su Railway: configura Environment Variables nel dashboard
     In locale: crea file .env dalla copia di .env.example
     """
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -67,7 +68,7 @@ class APIKeys:
 
         if missing:
             print(f"[ERROR] API Keys mancanti: {', '.join(missing)}")
-            print(f"        Configura le keys in .env (locale) o Secrets (Replit)")
+            print(f"        Configura le keys in .env (locale) o Environment Variables (Railway)")
             return False
 
         if not cls.TAVILY_API_KEY:
@@ -128,7 +129,7 @@ class BotConfig:
     MAX_FILE_SIZE_BYTES: int = MAX_FILE_SIZE_MB * 1024 * 1024
 
     # Polling vs Webhook
-    USE_POLLING: bool = True  # True per Replit Free, False per webhook
+    USE_POLLING: bool = True  # True per Railway Hobby, False per webhook
 
     # Concurrent updates (gestione utenti simultanei)
     CONCURRENT_UPDATES: bool = True
@@ -213,20 +214,34 @@ class RAGConfig:
 # ============================================
 class MemoryConfig:
     """
-    Configurazione memoria conversazionale.
+    Configurazione memoria conversazionale intelligente.
 
-    Sistema ibrido:
-    - Short-term: ultimi N messaggi intatti
+    Sistema ibrido con IntelligentMemoryManager:
+    - Short-term: ultimi N messaggi intatti (dettagli)
     - Long-term: riassunti automatici quando supera token_limit
+    - LRU eviction: max users in RAM con auto-save su disco
+    - Auto-cleanup: elimina conversazioni vecchie
+
+    STUDENTI: Sperimentate con questi parametri per ottimizzare!
     """
     # Token limit prima di summarization automatica
+    # Quando supera questo limite, riassume messaggi vecchi
     TOKEN_LIMIT: int = int(os.getenv("MEMORY_TOKEN_LIMIT", "1500"))
 
-    # Salva su disco ogni N messaggi
+    # Salva su disco ogni N messaggi (auto-save periodico)
     SAVE_INTERVAL: int = int(os.getenv("MEMORY_SAVE_INTERVAL", "5"))
 
-    # Max cached users in RAM (per performance)
-    MAX_CACHED_USERS: int = 100
+    # Max cached users in RAM (LRU eviction dopo questo limite)
+    # Railway Hobby Plan ha 512MB RAM → 100 users = ~400MB safe
+    MAX_CACHED_USERS: int = int(os.getenv("MAX_CACHED_USERS", "100"))
+
+    # Max messaggi per utente (hard limit fallback)
+    # Previene memory explosion se summarization fallisce
+    MAX_MESSAGES_PER_USER: int = int(os.getenv("MAX_MESSAGES_PER_USER", "200"))
+
+    # Auto-cleanup: elimina conversazioni inattive dopo N giorni
+    # GDPR-friendly e previene disk overflow
+    CLEANUP_DAYS: int = int(os.getenv("CLEANUP_DAYS", "30"))
 
 
 # ============================================
@@ -286,8 +301,11 @@ class AgentConfig:
 
     STUDENTI: Sperimentate con max_iterations e verbose!
     """
-    # Max iterations per agent execution
-    MAX_ITERATIONS: int = 5
+    # Max iterations per agent execution (ridotto da 5 a 3 per evitare loop errori)
+    MAX_ITERATIONS: int = 3
+
+    # Max retries in caso di errori parsing (retry automatico trasparente)
+    MAX_RETRIES: int = 2
 
     # Verbose mode (stampa reasoning steps)
     VERBOSE: bool = True
@@ -295,8 +313,8 @@ class AgentConfig:
     # Agent type
     AGENT_TYPE: str = "react"  # ReAct pattern
 
-    # Early stopping method
-    EARLY_STOPPING_METHOD: str = "generate"  # "force" or "generate"
+    # Early stopping method (async requires "force")
+    EARLY_STOPPING_METHOD: str = "force"  # "force" or "generate" (use "force" for async)
 
 
 # ============================================

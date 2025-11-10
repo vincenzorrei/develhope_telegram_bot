@@ -9,7 +9,7 @@ Uso:
 Requisiti:
     - Python 3.11
     - Dipendenze installate: pip install -r requirements.txt
-    - API keys configurate in .env (locale) o Secrets (Replit)
+    - API keys configurate in .env (locale) o Environment Variables (Railway)
     - Admin user IDs configurati
 
 Flow di avvio:
@@ -36,7 +36,7 @@ import config
 # Validate configuration
 if not config.validate_config():
     print("\n[ERROR] Configuration validation failed!")
-    print("        Check your .env file or Replit Secrets")
+    print("        Check your .env file or Railway Environment Variables")
     sys.exit(1)
 
 # Imports dopo validazione config
@@ -118,15 +118,28 @@ def initialize_components():
         sys.exit(1)
 
 
-def setup_signal_handlers():
+def setup_signal_handlers(components=None):
     """
     Setup gestione segnali per graceful shutdown.
 
     Gestisce CTRL+C e SIGTERM per chiusura pulita.
+
+    Args:
+        components: Dict dei componenti inizializzati (per save-on-shutdown)
     """
     def signal_handler(sig, frame):
-        """Handler per CTRL+C"""
+        """Handler per CTRL+C con graceful shutdown"""
         main_logger.info("\n\n[SHUTDOWN] Received interrupt signal")
+
+        # Force save all memories prima di uscire
+        if components and 'langchain_engine' in components:
+            try:
+                main_logger.info("[SHUTDOWN] Saving all user memories to disk...")
+                saved_count = components['langchain_engine'].memory_manager.force_save_all()
+                main_logger.info(f"[OK] Saved {saved_count} user memories")
+            except Exception as e:
+                main_logger.error(f"[ERROR] Failed to save memories: {e}")
+
         log_shutdown_info()
         sys.exit(0)
 
@@ -156,14 +169,26 @@ def main():
     main_logger.info(f"Admins: {len(config.admin_config.ADMIN_USER_IDS)}")
 
     # ========================================
-    # Setup signal handlers
-    # ========================================
-    setup_signal_handlers()
-
-    # ========================================
     # Initialize all components
     # ========================================
     components = initialize_components()
+
+    # ========================================
+    # Setup signal handlers (with components for graceful shutdown)
+    # ========================================
+    setup_signal_handlers(components=components)
+
+    # ========================================
+    # Cleanup old conversations (startup)
+    # ========================================
+    main_logger.info("Running memory cleanup (startup)...")
+    try:
+        deleted_count = components['langchain_engine'].memory_manager.cleanup_old_conversations(
+            days=config.memory_config.CLEANUP_DAYS
+        )
+        main_logger.info(f"[OK] Cleaned {deleted_count} old conversations")
+    except Exception as e:
+        main_logger.warning(f"[WARN] Cleanup failed: {e}")
 
     # ========================================
     # Setup handlers

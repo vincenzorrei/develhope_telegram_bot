@@ -26,8 +26,7 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.agents import AgentExecutor, create_react_agent
-from langchain.memory import ConversationBufferMemory
-from langchain.tools import Tool
+from langchain.tools import Tool, StructuredTool
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain import hub
 
@@ -42,6 +41,7 @@ from prompts import prompts
 from src.utils.logger import get_logger
 from src.utils.helpers import convert_markdown_to_html
 from src.rag.retriever import Retriever
+from src.utils.intelligent_memory_manager import IntelligentMemoryManager
 
 logger = get_logger(__name__)
 
@@ -120,13 +120,18 @@ class LangChainEngine:
         logger.info(f"      Top-K: {rag_config.TOP_K}")
 
         # ========================================
-        # COMPONENTE 4: Memory Management
+        # COMPONENTE 4: Intelligent Memory Management
         # ========================================
-        # Dizionario: user_id → ConversationBufferMemory
-        # Ogni utente ha la sua memoria separata!
-        logger.info("[4/5] Initializing Memory...")
-        self.user_memories: Dict[int, ConversationBufferMemory] = {}
-        logger.info("      Per-user memory enabled")
+        # IntelligentMemoryManager con:
+        # - Auto-summarization (ConversationSummaryBufferMemory)
+        # - LRU eviction (max 100 users in RAM)
+        # - Disk persistence (JSON)
+        # - Auto-cleanup conversazioni vecchie
+        logger.info("[4/5] Initializing Intelligent Memory Manager...")
+        self.memory_manager = IntelligentMemoryManager()
+        logger.info("      Hybrid memory: Summary + Recent buffer")
+        logger.info(f"      Max cached users: {self.memory_manager.max_cached_users}")
+        logger.info(f"      Token limit: {self.memory_manager.token_limit}")
 
         # ========================================
         # COMPONENTE 5: Tools + Agent
@@ -166,24 +171,47 @@ class LangChainEngine:
         tools = []
 
         # ========================================
-        # TOOL 1: RAG Document Search
+        # TOOL 1: RAG Document Search (ASYNC)
         # ========================================
         if feature_flags.ENABLE_RAG:
             # IMPORTANTE: Description chiara per l'agent!
             # L'agent decide quando usare il tool basandosi su questa description
-            rag_tool = Tool(
+            # Usa StructuredTool per supportare async coroutines
+
+            # Ottieni lista documenti disponibili per description
+            doc_list = self._get_document_list_summary()
+
+            # Description POTENZIATA con esempi e documenti disponibili
+            rag_tool = StructuredTool.from_function(
                 name="ricerca_documenti",
                 description=(
-                    "Cerca informazioni nei documenti caricati nel database. "
-                    "Usa questo tool quando l'utente chiede info su materiale "
-                    "specifico caricato (dispense, PDF, documenti). "
-                    "Input: domanda dell'utente. "
-                    "Output: testo rilevante dai documenti con citazioni."
+                    "🔍 **RICERCA NEI DOCUMENTI CARICATI DAGLI ADMIN** 🔍\n\n"
+
+                    "📂 DOCUMENTI ATTUALMENTE DISPONIBILI:\n"
+                    f"{doc_list}\n\n"
+
+                    "✅ QUANDO USARE QUESTO TOOL (esempi):\n"
+                    "- Domande su persone/organizzazioni menzionate nei documenti\n"
+                    "  Esempi: 'Chi è Vincenzo Orrei?', 'Cosa fa Develhope?'\n"
+                    "- Domande su contenuti specifici di corsi/guide/materiali\n"
+                    "  Esempi: 'Che corsi offre?', 'Quali sono i prerequisiti?'\n"
+                    "- Richieste di informazioni presenti nei documenti caricati\n"
+                    "  Esempi: 'Parlami del curriculum', 'Spiega il programma'\n"
+                    "- Qualsiasi domanda che sembra correlata ai nomi file sopra\n\n"
+
+                    "⚠️ IMPORTANTE:\n"
+                    "- SEMPRE preferibile a ricerca_web se la risposta potrebbe essere nei documenti!\n"
+                    "- Cerca PRIMA qui, poi usa web search solo se non trovi nulla\n"
+                    "- I documenti contengono informazioni specifiche e affidabili\n\n"
+
+                    "📥 Input: domanda dell'utente (stringa)\n"
+                    "📤 Output: risposta basata sui documenti con citazioni delle fonti"
                 ),
-                func=self._search_documents
+                func=self._search_documents,
+                coroutine=self._search_documents  # Async support
             )
             tools.append(rag_tool)
-            logger.info("      [TOOL] RAG Document Search added")
+            logger.info(f"      [TOOL] RAG Document Search added (async) - {len(self.vector_store.list_all_documents())} docs available")
 
         # ========================================
         # TOOL 2: Web Search (Tavily)
@@ -197,20 +225,31 @@ class LangChainEngine:
                 api_key=api_keys.TAVILY_API_KEY
             )
 
-            # Wrapper con nome italiano
+            # Wrapper con nome italiano e description migliorata
             web_search_tool = Tool(
                 name="ricerca_web",
                 description=(
-                    "Cerca informazioni su internet. "
-                    "Usa questo tool quando l'utente chiede info recenti, "
-                    "notizie, o contenuti non presenti nei documenti caricati. "
-                    "Input: query di ricerca. "
-                    "Output: risultati web aggiornati."
+                    "🌐 **RICERCA SU INTERNET (Tavily Web Search)** 🌐\n\n"
+
+                    "✅ QUANDO USARE QUESTO TOOL:\n"
+                    "- Informazioni recenti o notizie correnti\n"
+                    "  Esempi: 'Ultime notizie su AI', 'Eventi tech oggi'\n"
+                    "- Contenuti NON presenti nei documenti caricati\n"
+                    "- Dopo aver provato ricerca_documenti senza successo\n"
+                    "- Domande su eventi, persone, aziende NON menzionate nei documenti\n\n"
+
+                    "⚠️ IMPORTANTE:\n"
+                    "- Usa SOLO se ricerca_documenti non ha dato risultati\n"
+                    "- NON usare per domande che potrebbero essere nei documenti!\n"
+                    "- Preferisci sempre i documenti caricati (più affidabili)\n\n"
+
+                    "📥 Input: query di ricerca (stringa)\n"
+                    "📤 Output: risultati web aggiornati con fonti"
                 ),
                 func=tavily_tool.run
             )
             tools.append(web_search_tool)
-            logger.info("      [TOOL] Web Search added")
+            logger.info("      [TOOL] Web Search added (fallback option)")
 
         # ========================================
         # ESERCIZIO: Aggiungi i tuoi tool qui!
@@ -261,6 +300,40 @@ class LangChainEngine:
 
         return temporal_context
 
+    def _get_document_list_summary(self) -> str:
+        """
+        Ottiene lista compatta di documenti per tool description.
+
+        Usata nelle description dei tools per dare all'agent visibility
+        sui documenti disponibili senza appesantire la description.
+
+        Returns:
+            Stringa compatta con nomi documenti (max 5, poi "...")
+
+        Example output:
+            "curriculum_tutor.md, develhope.md, python_guide.pdf"
+            "doc1.pdf, doc2.pdf, doc3.pdf, doc4.pdf, doc5.pdf (+ 3 altri)"
+        """
+        try:
+            documents = self.vector_store.list_all_documents()
+
+            if not documents:
+                return "Nessun documento caricato"
+
+            # Prendi max 5 nomi documenti
+            names = [doc.get('source', 'Unknown') for doc in documents[:5]]
+            doc_list = ", ".join(names)
+
+            # Se ci sono più di 5, aggiungi indicatore
+            if len(documents) > 5:
+                doc_list += f" (+ {len(documents) - 5} altri)"
+
+            return doc_list
+
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to get document list: {e}")
+            return "Errore caricamento lista documenti"
+
     def _build_documents_context(self) -> str:
         """
         Costruisce sezione DOCUMENTI DISPONIBILI per system prompt.
@@ -307,6 +380,26 @@ class LangChainEngine:
         except Exception as e:
             logger.error(f"[ERROR] Failed to build documents context: {e}")
             return "\n⚠️  Errore recupero documenti disponibili.\n"
+
+    def _custom_parsing_error_handler(self, error: Exception) -> str:
+        """
+        Custom error handler per parsing errors dell'agent.
+
+        Quando il parser ReAct fallisce (es. formato output non valido),
+        restituisce un marker che il sistema di retry può rilevare.
+
+        IMPORTANTE: Restituisce "Invalid Format" così message_processor.py
+        può rilevare l'errore e attivare il fallback a RAG diretto.
+
+        Args:
+            error: L'eccezione di parsing sollevata
+
+        Returns:
+            str: Marker per indicare parsing error
+        """
+        logger.warning(f"⚠️  Agent parsing error: {error}")
+        # CRITICO: Include "Invalid Format" per il sistema di retry in message_processor
+        return "Invalid Format: Agent parsing error - fallback required"
 
     def _setup_agent(self) -> AgentExecutor:
         """
@@ -384,7 +477,7 @@ class LangChainEngine:
             verbose=agent_config.VERBOSE,
             max_iterations=agent_config.MAX_ITERATIONS,
             early_stopping_method=agent_config.EARLY_STOPPING_METHOD,
-            handle_parsing_errors=True  # Gestisci errori di parsing gracefully
+            handle_parsing_errors=self._custom_parsing_error_handler  # Custom handler per errori parsing
         )
 
         logger.info(f"      [OK] Agent executor ready")
@@ -393,36 +486,31 @@ class LangChainEngine:
 
         return agent_executor
 
-    def _get_or_create_memory(self, user_id: int) -> ConversationBufferMemory:
+    def _get_or_create_memory(self, user_id: int):
         """
-        Ottieni o crea memoria per user_id.
+        Ottieni o crea memoria per user_id (usando IntelligentMemoryManager).
 
         STUDENTI: Ogni utente ha memoria separata!
-        Questo permette conversazioni contestuali per utente.
+        Ora con features avanzate:
+        - Auto-summarization quando supera token limit
+        - LRU eviction per gestione RAM efficiente
+        - Persistenza su disco (conversazioni sopravvivono al restart)
 
         Args:
             user_id: Telegram user ID
 
         Returns:
-            ConversationBufferMemory per l'utente
+            ConversationSummaryBufferMemory per l'utente
 
         ESERCIZIO LIVELLO 2:
-        Sperimenta con diversi tipi di memory:
-        - ConversationSummaryMemory: riassume conversazioni lunghe
-        - ConversationBufferWindowMemory: mantiene ultimi N messaggi
-        - ConversationKGMemory: estrae knowledge graph
+        Verifica il comportamento auto-summarization:
+        1. Invia 20+ messaggi lunghi
+        2. Usa /memory_stats per vedere token count
+        3. Osserva quando triggera summarization (>1500 tokens)
         """
-        if user_id not in self.user_memories:
-            logger.debug(f"[MEMORY] Creating new memory for user {user_id}")
-            self.user_memories[user_id] = ConversationBufferMemory(
-                memory_key="chat_history",
-                return_messages=True,
-                output_key="output"
-            )
+        return self.memory_manager.get_memory(user_id)
 
-        return self.user_memories[user_id]
-
-    def _search_documents(self, query: str) -> str:
+    async def _search_documents(self, query: str) -> str:
         """
         Tool function: Cerca documenti nel vector store (RAG).
 
@@ -463,10 +551,10 @@ class LangChainEngine:
             # STEP 2: AUGMENTATION
             # ========================================
             context = self.retriever.format_context(results)
-            sources = self.retriever.format_sources(results)
+            # sources = self.retriever.format_sources(results)  # Fonti non più mostrate
 
             # ========================================
-            # STEP 3: GENERATION
+            # STEP 3: GENERATION (ASYNC)
             # ========================================
             # Costruisci prompt con contesto documenti
             augmented_prompt = prompts.RAG_QUERY_PROMPT.format(
@@ -474,14 +562,16 @@ class LangChainEngine:
                 query=query
             )
 
-            # Genera risposta
-            response = self.llm.predict(augmented_prompt)
+            # Genera risposta (ASYNC) - usa ainvoke invece di apredict (deprecato)
+            from langchain_core.messages import HumanMessage
+            response_message = await self.llm.ainvoke([HumanMessage(content=augmented_prompt)])
+            response = response_message.content
 
-            # Convert Markdown to HTML (fallback)
-            response = convert_markdown_to_html(response)
+            # ✅ MANTIENI MARKDOWN PURO per il parser ReAct
+            # La conversione HTML avverrà in process_message() dopo che l'agent completa
 
-            # Aggiungi citazioni
-            final_response = response + "\n\n" + sources
+            # Citazioni fonti rimosse (risposta più pulita)
+            final_response = response
 
             logger.debug(f"[RAG TOOL] Generated response ({len(final_response)} chars)")
             return final_response
@@ -490,22 +580,30 @@ class LangChainEngine:
             logger.error(f"[RAG TOOL ERROR] {e}")
             return f"Errore durante ricerca documenti: {str(e)}"
 
-    def process_message(
+    async def process_message(
         self,
         user_message: str,
         user_id: int
     ) -> str:
         """
-        Processing principale: messaggio utente → risposta bot.
+        Processing principale: messaggio utente → risposta bot (ASYNC).
 
         Questo è l'entry point principale! Tutto passa da qui.
 
         Flow:
         1. Recupera memoria utente
-        2. Agent decide autonomamente quale tool usare (o nessuno)
-        3. Agent esegue tool se necessario
-        4. Agent genera risposta finale
-        5. Aggiorna memoria
+        2. **BUILD FRESH DOCUMENT CONTEXT** (CRITICAL FIX!)
+        3. Inject context nel prompt per agent awareness
+        4. Agent decide autonomamente quale tool usare (o nessuno)
+        5. Agent esegue tool se necessario
+        6. Agent genera risposta finale
+        7. Aggiorna memoria
+
+        IMPORTANTE REFACTOR:
+        - Ora usa ainvoke() invece di invoke() per esecuzione asincrona
+        - Non blocca l'event loop durante chiamate LLM/API
+        - Permette gestione concorrente di multipli utenti
+        - **DYNAMIC CONTEXT INJECTION**: Agent vede documenti aggiornati ad ogni query!
 
         Args:
             user_message: Messaggio dell'utente
@@ -515,7 +613,7 @@ class LangChainEngine:
             Risposta del bot
 
         Example:
-            >>> response = engine.process_message(
+            >>> response = await engine.process_message(
             ...     user_message="Cosa dice il documento su Python?",
             ...     user_id=123
             ... )
@@ -527,27 +625,38 @@ class LangChainEngine:
             memory = self._get_or_create_memory(user_id)
 
             # ========================================
-            # Agent Execution
+            # DYNAMIC DOCUMENT CONTEXT INJECTION (FIX CRITICO!)
+            # ========================================
+            # Costruisci contesto documenti FRESCO per OGNI query
+            # Questo risolve il problema: agent vede sempre lista aggiornata!
+            documents_context = self._build_documents_context()
+
+            # Prepend al messaggio utente per dare context all'agent
+            # L'agent vedrà la lista documenti PRIMA di decidere quale tool usare
+            enhanced_input = f"{documents_context}\n\n{'='*60}\nDOMANDA UTENTE:\n{'='*60}\n{user_message}"
+
+            logger.debug(f"[CONTEXT] Injected fresh document context ({len(documents_context)} chars)")
+
+            # ========================================
+            # Agent Execution (ASYNC)
             # ========================================
             # L'agent decide autonomamente:
-            # - Usare RAG tool? (se query su documenti)
+            # - Usare RAG tool? (se query su documenti) ← Ora vede i documenti!
             # - Usare Web search? (se serve info recenti)
             # - Rispondere direttamente? (se ha già la risposta)
-            result = self.agent_executor.invoke({
-                "input": user_message,
+            result = await self.agent_executor.ainvoke({
+                "input": enhanced_input,  # ← USA INPUT ENHANCED con context!
                 "chat_history": memory.buffer_as_messages if hasattr(memory, 'buffer_as_messages') else []
             })
 
             response = result.get("output", "Mi dispiace, non ho potuto generare una risposta.")
 
-            # Convert Markdown to HTML (fallback finale)
-            response = convert_markdown_to_html(response)
+            # ✅ NON convertiamo HTML qui - la conversione avviene in message_processor.py
+            # Questo evita doppia conversione e mantiene il testo puro per il parser ReAct
 
-            # Aggiorna memoria
-            memory.save_context(
-                {"input": user_message},
-                {"output": response}
-            )
+            # Salva interazione con IntelligentMemoryManager
+            # Salva il messaggio ORIGINALE (non enhanced) per memoria pulita
+            self.memory_manager.save_interaction(user_id, user_message, response)
 
             logger.info(f"[SUCCESS] Generated response ({len(response)} chars)")
             return response
@@ -558,16 +667,58 @@ class LangChainEngine:
             traceback.print_exc()
             return f"Mi dispiace, si è verificato un errore: {str(e)[:200]}"
 
+    def refresh_agent(self):
+        """
+        Ricrea agent con contesto documenti aggiornato.
+
+        QUANDO CHIAMARE:
+        - Dopo upload nuovo documento
+        - Dopo eliminazione documento
+        - Dopo modifica summary documento
+
+        Questo garantisce che:
+        1. Tool descriptions includano lista documenti aggiornata
+        2. System prompt contenga documenti più recenti
+        3. Agent abbia awareness corretta delle risorse disponibili
+
+        Note:
+        - Operazione rapida (~100ms)
+        - Memoria utenti NON viene cancellata
+        - Tools vengono ricreati con descriptions aggiornate
+        - Agent executor viene ricreato con nuovo prompt
+        """
+        logger.info("[REFRESH] Rebuilding agent with updated document context...")
+
+        try:
+            # Ricrea tools con descriptions aggiornate
+            self.tools = self._setup_tools()
+
+            # Ricrea agent executor con nuovo system prompt
+            self.agent_executor = self._setup_agent()
+
+            logger.info("[REFRESH] ✅ Agent refreshed successfully!")
+            logger.info(f"[REFRESH]    Tools: {len(self.tools)}")
+            logger.info(f"[REFRESH]    Documents available: {len(self.vector_store.list_all_documents())}")
+
+        except Exception as e:
+            logger.error(f"[REFRESH] ❌ Failed to refresh agent: {e}")
+            import traceback
+            traceback.print_exc()
+
     def clear_memory(self, user_id: int):
         """
         Cancella memoria conversazione per user_id.
 
+        Usa IntelligentMemoryManager che gestisce:
+        - Rimozione da RAM
+        - Eliminazione file da disco
+        - Reset counters
+
         Args:
             user_id: Telegram user ID
         """
-        if user_id in self.user_memories:
-            del self.user_memories[user_id]
-            logger.info(f"[MEMORY] Cleared for user {user_id}")
+        self.memory_manager.clear_memory(user_id)
+        logger.info(f"[MEMORY] Cleared for user {user_id}")
 
 
 # ========================================

@@ -449,7 +449,7 @@ Collection: documents
 Vector DB: 0.05 MB
 Documenti originali: 0.05 MB
 Totale: 0.10 MB
-Limite Replit: 2000 MB
+Limite Railway (Hobby): 512 MB RAM / 512 MB Disk
 
 [UTENTI]
 Utenti attivi: 1

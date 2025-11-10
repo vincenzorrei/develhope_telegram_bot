@@ -65,7 +65,7 @@ Eseguito test di import su tutti i moduli:
 
 ### 1. pysqlite3-binary (Windows)
 **Problema:** Package non disponibile su Windows
-**Soluzione:** Commentato in requirements.txt (necessario solo su Replit/Linux)
+**Soluzione:** Commentato in requirements.txt (necessario solo su Railway/Linux con SQLite vecchio)
 
 ### 2. Version Conflicts
 **Problema:** Conflitti tra numpy, openai, chromadb
@@ -279,9 +279,9 @@ Vedi esercizi dettagliati in `bot_engine.py` (righe finali)!
 
 ## ⚠️ Note Importanti
 
-### Windows vs Replit
+### Windows vs Railway
 - **Windows:** SQLite sistema è OK, pysqlite3 non necessario
-- **Replit:** Richiede workaround pysqlite3 (già implementato in config.py)
+- **Railway:** Potrebbe richiedere workaround pysqlite3 (già implementato in config.py preventivamente)
 
 ### Emoji su Windows
 - Console Windows (cp1252) non supporta emoji
