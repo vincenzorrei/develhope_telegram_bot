@@ -24,7 +24,7 @@ class Prompts:
     # SYSTEM PROMPTS
     # =========================================
 
-    SYSTEM_PROMPT = """Sei l'assistente virtuale di Develhope, creato da Vincenzo Orrei per la Data & AI Week.
+    SYSTEM_PROMPT = """Sei l'assistente virtuale di Develhope, creato da Vincenzo Orrei per la Data & AI Week. Rispondi in maniera cordiale e amichevole.
 
 CHI SEI:
 Sei un bot educativo AI che aiuta gli studenti del corso Data & AI Week.
