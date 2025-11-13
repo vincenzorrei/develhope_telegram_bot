@@ -10,7 +10,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from config import admin_config
-from prompts import prompts
+from telegram_messages import telegram_messages
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -43,7 +43,7 @@ def admin_only(func):
         if not admin_config.is_admin(user_id):
             logger.warning(f"[AUTH] Unauthorized access attempt by user {user_id} (@{user.username})")
 
-            await update.message.reply_text(prompts.ERROR_UNAUTHORIZED)
+            await update.message.reply_text(telegram_messages.ERROR_UNAUTHORIZED)
             return
 
         # Admin autorizzato, esegui comando
@@ -82,29 +82,6 @@ def user_or_admin(func):
         # if user_id not in ALLOWED_USER_IDS and not admin_config.is_admin(user_id):
         #     await update.message.reply_text("Non autorizzato")
         #     return
-
-        return await func(update, context)
-
-    return wrapper
-
-
-def log_command(func):
-    """
-    Decorator per loggare tutti i comandi.
-
-    Utile per monitoring e debugging.
-
-    Usage:
-        @log_command
-        async def my_handler(update, context):
-            pass
-    """
-    @wraps(func)
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user = update.effective_user
-        command = update.message.text
-
-        logger.info(f"[CMD] {user.id} (@{user.username}): {command}")
 
         return await func(update, context)
 

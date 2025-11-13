@@ -12,11 +12,11 @@ IMPORTANTE per STUDENTI:
 
 from typing import Optional
 from io import BytesIO
-from openai import OpenAI
 
-from config import api_keys, llm_config
+from config import llm_config
 from src.utils.logger import get_logger
 from src.utils.helpers import truncate_text
+from src.utils.shared_clients import get_openai_client
 
 logger = get_logger(__name__)
 
@@ -60,8 +60,8 @@ class AudioGenerator:
         logger.info(f"       Model: {self.model}")
         logger.info(f"       Max chars: {self.max_chars}")
 
-        # Initialize OpenAI client
-        self.client = OpenAI(api_key=api_keys.OPENAI_API_KEY)
+        # Use shared OpenAI client (evita duplicazioni)
+        self.client = get_openai_client()
 
     def generate(
         self,
@@ -144,58 +144,6 @@ class AudioGenerator:
         raise NotImplementedError("Streaming TTS not yet implemented")
 
 
-class TTSCache:
-    """
-    Cache per risposte TTS frequenti.
-
-    Evita di rigenerare audio per testi identici,
-    riducendo costi e latenza.
-
-    ESERCIZIO per STUDENTI:
-    Implementate questo sistema di caching!
-
-    Ideas:
-    1. In-memory dict: hash(text) -> audio_bytes
-    2. Persistent: salva su disco (pickle/json)
-    3. Telegram file_id cache: riutilizza file_id
-    4. LRU cache per limitare memoria
-    """
-
-    def __init__(self, max_size: int = 100):
-        """
-        Inizializza cache TTS.
-
-        Args:
-            max_size: Numero massimo items in cache
-        """
-        self.cache = {}
-        self.max_size = max_size
-        logger.info(f"[INIT] TTSCache (max_size: {max_size})")
-
-    def get(self, text: str) -> Optional[bytes]:
-        """Get cached audio per testo"""
-        import hashlib
-        text_hash = hashlib.md5(text.encode()).hexdigest()
-        return self.cache.get(text_hash)
-
-    def set(self, text: str, audio_bytes: bytes):
-        """Cache audio per testo"""
-        import hashlib
-        text_hash = hashlib.md5(text.encode()).hexdigest()
-
-        # Simple LRU: remove oldest if full
-        if len(self.cache) >= self.max_size:
-            # Remove first item (oldest)
-            first_key = next(iter(self.cache))
-            del self.cache[first_key]
-
-        self.cache[text_hash] = audio_bytes
-        logger.debug(f"[CACHE] Cached audio for hash {text_hash[:8]}...")
-
-    def clear(self):
-        """Clear cache"""
-        self.cache.clear()
-        logger.info("[CACHE] Cleared")
 
 
 if __name__ == "__main__":
@@ -219,14 +167,6 @@ if __name__ == "__main__":
 
         print("\n[INFO] Skipping actual TTS call (requires API key)")
         print("       Set valid OPENAI_API_KEY to test generation")
-
-        # Test cache
-        print("\n[TEST] TTS Cache")
-        cache = TTSCache(max_size=3)
-        cache.set("test1", b"audio1")
-        cache.set("test2", b"audio2")
-        cached = cache.get("test1")
-        print(f"       Cached: {cached == b'audio1'}")
 
         print("\n[SUCCESS] All tests passed!")
 

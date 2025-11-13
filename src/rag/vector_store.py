@@ -110,6 +110,16 @@ class VectorStoreManager:
             logger.info(f"✅ Collection '{self.collection_name}' pronta")
             logger.info(f"   Chunks esistenti: {self.collection.count()}")
 
+            # Initialize embedder once (reused across methods)
+            from langchain_openai import OpenAIEmbeddings
+            from config import api_keys
+
+            self.embedder = OpenAIEmbeddings(
+                model=rag_config.EMBEDDING_MODEL,
+                openai_api_key=api_keys.OPENAI_API_KEY
+            )
+            logger.info("✅ OpenAI Embedder initialized")
+
         except Exception as e:
             logger.error(f"❌ Errore creazione collection: {e}")
             raise
@@ -172,16 +182,8 @@ class VectorStoreManager:
             # Se embeddings non forniti, calcolali con OpenAI
             if not embeddings:
                 logger.info("   Calculating embeddings with OpenAI...")
-                from langchain_openai import OpenAIEmbeddings
-                from config import api_keys  # rag_config già importato
-
-                embedder = OpenAIEmbeddings(
-                    model=rag_config.EMBEDDING_MODEL,
-                    openai_api_key=api_keys.OPENAI_API_KEY
-                )
-
-                # Calcola embeddings per tutti i chunks
-                embeddings = embedder.embed_documents(chunks)
+                # Usa embedder pre-inizializzato (evita duplicazione)
+                embeddings = self.embedder.embed_documents(chunks)
                 logger.info(f"   ✅ Generated {len(embeddings)} embeddings")
 
             # Add to ChromaDB con embeddings espliciti
@@ -277,15 +279,8 @@ class VectorStoreManager:
         logger.debug(f"🔍 Similarity search: '{query}' (top-{k})")
 
         try:
-            # Calcola embedding query con OpenAI
-            from langchain_openai import OpenAIEmbeddings
-            from config import api_keys
-
-            embedder = OpenAIEmbeddings(
-                model=rag_config.EMBEDDING_MODEL,
-                openai_api_key=api_keys.OPENAI_API_KEY
-            )
-            query_embedding = embedder.embed_query(query)
+            # Calcola embedding query con embedder pre-inizializzato
+            query_embedding = self.embedder.embed_query(query)
 
             # Query ChromaDB con embedding esplicito
             results = self.collection.query(

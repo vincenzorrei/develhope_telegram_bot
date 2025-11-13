@@ -5,7 +5,10 @@ Orchestrates:
 - LangChain Agent (ReAct pattern)
 - RAG (Retrieval-Augmented Generation)
 - Tool calling (RAG + Web Search)
-- Memory management per user_id
+- Memory management per user_id (via IntelligentMemoryManager)
+  - Adaptive memory with summarization
+  - Disk persistence for conversation history
+  - RAM optimization with eviction policies
 """
 
 from typing import List, Dict, Optional, Any

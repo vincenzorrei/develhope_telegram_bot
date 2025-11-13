@@ -1,20 +1,34 @@
 """
-Prompts Centralizzati per Bot Telegram Educativo
+Prompts LLM per Bot Telegram Educativo
 
-STUDENTI: Questo file contiene tutti i prompt utilizzati dal bot.
-Modificate questi prompt per personalizzare il comportamento del bot!
+STUDENTI: Questo file contiene SOLO i prompt che guidano il comportamento dell'AI.
+Per i messaggi UI Telegram, vedi telegram_messages.py
 
-Tips per modificare i prompts:
-1. Siate specifici e chiari
+Modificate questi prompt per personalizzare il ragionamento e le risposte del bot!
+
+Tips per modificare i prompts LLM:
+1. Siate specifici e chiari nel definire il comportamento
 2. Includete esempi se necessario
-3. Definite il tono/stile desiderato
+3. Definite il formato di output desiderato
 4. Testate sempre dopo le modifiche!
 """
 
 
 class Prompts:
     """
-    Classe centralizzata per tutti i prompt del bot.
+    Classe centralizzata per tutti i prompt LLM del bot.
+
+    Questi prompt guidano il comportamento dell'AI e vengono passati
+    direttamente ai modelli (ChatGPT, GPT-4o Vision, etc.).
+
+    COSA MODIFICARE:
+    - SYSTEM_PROMPT: Personalità, comportamento, istruzioni base
+    - IMAGE_ANALYSIS_PROMPT: Come analizzare le immagini
+    - RAG_CONTEXT_TEMPLATE: Come presentare i documenti recuperati
+
+    COSA NON MODIFICARE (a meno che non sia necessario):
+    - Variabili placeholder come {context}, {query}, {history}
+    - Struttura generale dei template (usa .format() per sostituire variabili)
 
     Gli studenti possono modificare questi prompt per sperimentare
     con diversi comportamenti e personalità del bot.
@@ -24,11 +38,11 @@ class Prompts:
     # SYSTEM PROMPTS
     # =========================================
 
-    SYSTEM_PROMPT = """Sei l'assistente virtuale di Develhope,creato da Vincenzo Orrei per la Data & AI Week. 
-    Rispondi in maniera cordiale e amichevole.
+    SYSTEM_PROMPT = """Sei l'assistente virtuale di Develhope,creato da Vincenzo Orrei per la Data & AI Week.
+    Rispondi in maniera molto cordiale, propositiva e amichevole.
 
 CHI SEI:
-Sei un bot educativo AI che aiuta gli studenti del corso Data & AI Week.
+Sei un assistente AI che aiuta gli studenti del corso Data & AI Week.
 Il progetto finale di questo corso è proprio creare un bot RAG come te stesso - una tua copia modificata!
 
 CAPACITÀ:
@@ -67,13 +81,11 @@ Quando le informazioni recuperate dai tool contengono DATI SPECIFICI, INCLUDILI 
 - Date specifiche: mantieni date esatte
 - Nomi propri, username, handle: riporta esattamente
 - Dati numerici concreti: riporta i numeri
-NON sintetizzare o rimuovere questi dettagli! L'utente li vuole vedere!
+NON sintetizzare o rimuovere questi dettagli! L'utente li vuole sapere quanto più possibile!
 
 TONO E STILE:
-- Professionale ma amichevole e accogliente
+- Professionale ma molto cordiale, accogliente e propositivo
 - Risposte elaborate e conversazionali (evita risposte telegrafiche)
-- Paziente ed entusiasta nell'aiutare gli studenti
-- Spiega i concetti chiaramente, contestualizzando quando utile
 """
 
     # =========================================
@@ -104,23 +116,6 @@ Posso:
 3. Chiederti di riformulare la domanda in modo più specifico
 
 Come preferisci procedere?"""
-
-    # =========================================
-    # ROUTING PROMPTS
-    # =========================================
-
-    ROUTING_PROMPT = """Analizza la domanda dell'utente e decidi quale fonte usare per rispondere.
-
-DOMANDA: {query}
-
-FONTI DISPONIBILI:
-- RAG: Documenti caricati nel database (usa per domande su materiale specifico caricato)
-- WEB: Ricerca web con Tavily (usa per informazioni recenti o non presenti nei documenti)
-- DIRECT: Conoscenza generale LLM (usa per domande generali che non richiedono fonti esterne)
-
-Rispondi con UNA SOLA parola: RAG, WEB, o DIRECT
-
-DECISIONE:"""
 
     # =========================================
     # WEB SEARCH PROMPTS
@@ -178,382 +173,8 @@ Analizza l'immagine attentamente e fornisci una risposta dettagliata e educativa
 - <i>corsivo</i> per enfasi (NON *testo*)
 - <code>code</code> per riferimenti specifici (NON `code`)"""
 
-    # =========================================
-    # WELCOME MESSAGES
-    # =========================================
-
-    WELCOME_USER = """👋 Ciao! Sono un bot educativo AI con capacità RAG.
-
-Posso aiutarti a:
-📚 Rispondere domande sui documenti caricati dagli admin
-🔍 Cercare informazioni sul web
-🖼️ Analizzare immagini che mi invii
-💬 Mantenere una conversazione contestuale
-
-Invia un messaggio o una domanda per iniziare!
-
-Comandi disponibili:
-/help - Mostra tutti i comandi
-/clear - Cancella cronologia conversazione
-/voice_on - Attiva risposte vocali
-/voice_off - Disattiva risposte vocali"""
-
-    WELCOME_ADMIN = """👋 Ciao Admin! Sono il bot educativo AI con capacità RAG.
-
-🔧 COMANDI ADMIN:
-/add_doc - Carica nuovo documento (PDF, DOCX, TXT, MD)
-/list_docs - Lista documenti caricati
-/get_doc - Scarica documento originale per ID
-/modify_summary - Modifica sommario documento
-/delete_doc - Elimina documento per ID
-/stats - Statistiche sistema (RAG, disk, users)
-/memory_stats - Statistiche memoria (RAM, disk, evictions)
-
-👤 COMANDI UTENTE:
-/help - Mostra aiuto
-/clear - Cancella cronologia
-/voice_on - Attiva audio
-/voice_off - Disattiva audio
-
-Inizia caricando documenti con /add_doc oppure chiedimi qualcosa!"""
-
-    # =========================================
-    # HELP MESSAGES
-    # =========================================
-
-    HELP_MESSAGE_USER = """📖 GUIDA BOT EDUCATIVO
-
-🎯 COSA POSSO FARE:
-• Rispondere domande sui documenti caricati
-• Cercare informazioni aggiornate sul web
-• Analizzare immagini che mi invii
-• Ricordare la nostra conversazione
-
-💬 COMANDI DISPONIBILI:
-/help - Mostra questo messaggio
-/clear - Cancella cronologia conversazione
-/voice_on - Attiva risposte vocali (TTS)
-/voice_off - Disattiva risposte vocali
-
-❓ COME USARMI:
-1. Invia una domanda testuale
-2. Oppure invia un'immagine con didascalia
-3. Riceverai risposta basata su documenti, web o conoscenza generale
-
-💡 TIPS:
-• Sii specifico nelle domande per risposte migliori
-• Puoi fare domande di follow-up sulla conversazione
-• Le immagini vanno inviate come "documento" per qualità migliore"""
-
-    HELP_MESSAGE_ADMIN = """📖 GUIDA BOT EDUCATIVO (ADMIN)
-
-🔧 COMANDI AMMINISTRATIVI:
-/add_doc - Inizia caricamento documento
-  → Supporta: PDF, DOCX, TXT, MD
-  → Max size: 20MB
-  → Il bot processerà e indicizzerà il documento
-
-/list_docs - Mostra tutti i documenti caricati
-  → Vedi ID, nome, sommario, data caricamento, numero chunks
-
-/get_doc <id> - Scarica documento originale
-  → Esempio: /get_doc doc_12345
-  → Ricevi il file fisico del documento caricato
-
-/modify_summary <id> <nuovo_summary> - Modifica sommario
-  → Esempio: /modify_summary doc_12345 Guida Python completa
-  → Il sommario aiuta l'agent a decidere quando usare RAG
-
-/delete_doc <id> - Elimina documento
-  → Esempio: /delete_doc doc_12345
-  → Elimina sia chunks che file fisico
-
-/stats - Statistiche sistema
-  → Documenti totali
-  → Chunks indicizzati
-  → Storage utilizzato
-  → Utenti attivi
-
-/memory_stats - Statistiche memoria conversazionale
-  → Memoria RAM utilizzata
-  → Users in cache
-  → Disk usage e evictions
-
-👤 COMANDI UTENTE:
-/help - Mostra aiuto
-/clear - Cancella cronologia
-/voice_on - Attiva risposte audio
-/voice_off - Disattiva risposte audio
-
-🎓 GESTIONE DOCUMENTI:
-1. Carica documenti con /add_doc
-2. Verifica indicizzazione con /list_docs
-3. Modifica sommario se necessario con /modify_summary
-4. Scarica documenti originali con /get_doc
-5. Gli utenti possono subito fare query RAG
-6. Elimina documenti obsoleti con /delete_doc"""
-
-    # =========================================
-    # STATUS MESSAGES
-    # =========================================
-
-    NO_DOCUMENTS_FOUND = """📭 Nessun documento trovato nel database.
-
-Gli admin devono caricare documenti prima che io possa rispondere a domande specifiche su materiale didattico.
-
-Nel frattempo, posso:
-• Rispondere a domande generali
-• Cercare informazioni sul web
-• Analizzare immagini
-
-Cosa posso fare per te?"""
-
-    DOCUMENT_ADDED_SUCCESS = """✅ Documento caricato con successo!
-
-📄 Nome: {filename}
-🔢 Chunks creati: {num_chunks}
-🆔 ID documento: {doc_id}
-📊 Total documenti: {total_docs}
-
-Il documento è ora disponibile per query RAG!"""
-
-    DOCUMENT_DELETED_SUCCESS = """✅ Documento eliminato con successo!
-
-🗑️ ID: {doc_id}
-📄 Nome: {filename}
-
-Il documento è stato rimosso dal database vettoriale."""
-
-    PROCESSING_DOCUMENT = """⏳ Sto processando il documento...
-
-Operazioni in corso:
-1. ✅ Download completato
-2. 🔄 Estrazione testo in corso...
-3. ⏳ Chunking...
-4. ⏳ Generazione embeddings...
-5. ⏳ Salvataggio in ChromaDB...
-
-Questo può richiedere alcuni secondi per documenti grandi."""
-
-    # =========================================
-    # ERROR MESSAGES
-    # =========================================
-
-    ERROR_UNAUTHORIZED = """🚫 Accesso negato.
-
-Questo comando è disponibile solo per gli amministratori.
-
-Usa /help per vedere i comandi disponibili."""
-
-    ERROR_FILE_TOO_LARGE = """❌ File troppo grande!
-
-Max dimensione: {max_size_mb} MB
-Dimensione file: {file_size_mb} MB
-
-Riduci le dimensioni del file o dividilo in parti più piccole."""
-
-    ERROR_UNSUPPORTED_FORMAT = """❌ Formato file non supportato.
-
-Formati supportati:
-• PDF (.pdf)
-• Word (.docx)
-• Testo (.txt)
-• Markdown (.md)
-
-Formato ricevuto: {file_format}"""
-
-    ERROR_PROCESSING_DOCUMENT = """❌ Errore durante il processamento del documento.
-
-Motivo: {error}
-
-Riprova o contatta l'amministratore se il problema persiste."""
-
-    ERROR_GENERIC = """❌ Si è verificato un errore.
-
-{error_message}
-
-Riprova o usa /help per assistenza."""
-
-    ERROR_NO_ADMIN_CONFIGURED = """⚠️ Nessun amministratore configurato!
-
-Il bot richiede almeno un admin per funzionare.
-Configura ADMIN_USER_IDS nel file .env o Railway Environment Variables."""
-
-    ERROR_API_KEY_MISSING = """❌ API key mancante: {key_name}
-
-Configura la key in:
-• Locale: file .env
-• Railway: Environment Variables
-
-Vedi .env.example per riferimento."""
-
-    # =========================================
-    # CONFIRMATION MESSAGES
-    # =========================================
-
-    CONFIRM_DELETE_DOCUMENT = """⚠️ CONFERMA ELIMINAZIONE
-
-Stai per eliminare:
-📄 Nome: {filename}
-🆔 ID: {doc_id}
-📊 Chunks: {num_chunks}
-
-Questa azione è IRREVERSIBILE!
-
-Rispondi con:
-✅ /confirm_delete - Per confermare
-❌ /cancel - Per annullare"""
-
-    CONFIRM_CLEAR_MEMORY = """⚠️ CONFERMA CANCELLAZIONE MEMORIA
-
-Stai per cancellare tutta la cronologia della conversazione.
-
-Questa azione è IRREVERSIBILE!
-
-Rispondi con:
-✅ /confirm_clear - Per confermare
-❌ /cancel - Per annullare"""
-
-    MEMORY_CLEARED = """✅ Memoria conversazione cancellata!
-
-Possiamo ricominciare da zero. Come posso aiutarti?"""
-
-    # =========================================
-    # VOICE MODE MESSAGES
-    # =========================================
-
-    VOICE_ENABLED = """🔊 Modalità vocale ATTIVATA!
-
-Ora riceverai anche risposte audio (OpenAI TTS).
-
-⚠️ Attenzione: TTS consuma più crediti API.
-
-Disattiva con /voice_off"""
-
-    VOICE_DISABLED = """🔇 Modalità vocale DISATTIVATA!
-
-Riceverai solo risposte testuali.
-
-Riattiva con /voice_on"""
-
-    # =========================================
-    # STATS MESSAGES
-    # =========================================
-
-    STATS_TEMPLATE = """📊 STATISTICHE SISTEMA
-
-🗄️ DATABASE:
-• Documenti totali: {total_docs}
-• Chunks indicizzati: {total_chunks}
-• Collection: {collection_name}
-
-💾 STORAGE:
-• VectorDB: {vectordb_size_mb} MB
-• Documenti: {docs_size_mb} MB
-• Totale: {total_size_mb} MB / {limit_mb} MB
-
-👥 UTENTI:
-• Utenti attivi: {active_users}
-• Admin: {admin_count}
-
-🤖 SISTEMA:
-• LLM Model: {llm_model}
-• Embedding Model: {embedding_model}
-• RAG Top-K: {rag_top_k}"""
-
-
-# =========================================
-# HELPER FUNCTIONS
-# =========================================
-
-def format_sources(sources: list) -> str:
-    """
-    Formatta lista di fonti per citazioni.
-
-    Args:
-        sources: Lista di dict con 'source' e 'page'
-
-    Returns:
-        Stringa formattata con citazioni
-    """
-    if not sources:
-        return ""
-
-    citations = "\n\n📚 **Fonti:**\n"
-    for i, source in enumerate(sources, 1):
-        filename = source.get('source', 'Unknown')
-        page = source.get('page', 'N/A')
-        citations += f"{i}. {filename} (pag. {page})\n"
-
-    return citations
-
-
-def truncate_text(text: str, max_length: int = 4000) -> str:
-    """
-    Tronca testo se supera max_length.
-
-    Utile per rispettare limiti Telegram (4096 chars) e TTS (4096 chars).
-
-    Args:
-        text: Testo da troncare
-        max_length: Lunghezza massima
-
-    Returns:
-        Testo troncato con ellipsis se necessario
-    """
-    if len(text) <= max_length:
-        return text
-
-    return text[:max_length-3] + "..."
-
-
-def format_error_for_user(error: Exception) -> str:
-    """
-    Formatta errore tecnico in messaggio user-friendly.
-
-    Args:
-        error: Eccezione Python
-
-    Returns:
-        Messaggio di errore comprensibile
-    """
-    error_str = str(error).lower()
-
-    # Map errori comuni a messaggi user-friendly
-    if "rate limit" in error_str:
-        return "Troppe richieste. Attendi un momento e riprova."
-    elif "timeout" in error_str:
-        return "Richiesta scaduta. Riprova con una query più semplice."
-    elif "api key" in error_str:
-        return "Errore di autenticazione API. Contatta l'amministratore."
-    elif "quota" in error_str:
-        return "Quota API esaurita. Contatta l'amministratore."
-    else:
-        return f"Errore: {str(error)[:100]}"
-
 
 # =========================================
 # EXPORTS
 # =========================================
 prompts = Prompts()
-
-
-if __name__ == "__main__":
-    # Fix UTF-8 encoding per Windows
-    import sys
-    if hasattr(sys.stdout, 'reconfigure'):
-        try:
-            sys.stdout.reconfigure(encoding='utf-8')
-        except:
-            pass
-
-    # Test prompts
-    print("Testing prompts module...")
-    print("\n=== WELCOME MESSAGE ===")
-    print(prompts.WELCOME_USER)
-    print("\n=== RAG QUERY EXAMPLE ===")
-    print(prompts.RAG_QUERY_PROMPT.format(
-        context="Example document content...",
-        query="What is machine learning?"
-    ))
-    print("\n✅ All prompts loaded successfully!")

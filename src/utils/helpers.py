@@ -634,6 +634,69 @@ def safe_dict_get(d: dict, *keys, default=None) -> Any:
     return current
 
 
+def format_sources(sources: List[dict]) -> str:
+    """
+    Formatta lista di fonti per citazioni RAG.
+
+    Utile per aggiungere citazioni documentali alle risposte.
+
+    Args:
+        sources: Lista di dict con 'source' e 'page'
+
+    Returns:
+        Stringa formattata con citazioni
+
+    Example:
+        >>> sources = [{"source": "doc.pdf", "page": 5}, {"source": "guide.txt", "page": 2}]
+        >>> print(format_sources(sources))
+        📚 **Fonti:**
+        1. doc.pdf (pag. 5)
+        2. guide.txt (pag. 2)
+    """
+    if not sources:
+        return ""
+
+    citations = "\n\n📚 **Fonti:**\n"
+    for i, source in enumerate(sources, 1):
+        filename = source.get('source', 'Unknown')
+        page = source.get('page', 'N/A')
+        citations += f"{i}. {filename} (pag. {page})\n"
+
+    return citations
+
+
+def format_error_for_user(error: Exception) -> str:
+    """
+    Formatta errore tecnico in messaggio user-friendly.
+
+    Converte eccezioni Python in messaggi comprensibili per utenti finali.
+
+    Args:
+        error: Eccezione Python
+
+    Returns:
+        Messaggio di errore comprensibile
+
+    Example:
+        >>> error = Exception("Rate limit exceeded")
+        >>> format_error_for_user(error)
+        'Troppe richieste. Attendi un momento e riprova.'
+    """
+    error_str = str(error).lower()
+
+    # Map errori comuni a messaggi user-friendly
+    if "rate limit" in error_str:
+        return "Troppe richieste. Attendi un momento e riprova."
+    elif "timeout" in error_str:
+        return "Richiesta scaduta. Riprova con una query più semplice."
+    elif "api key" in error_str:
+        return "Errore di autenticazione API. Contatta l'amministratore."
+    elif "quota" in error_str:
+        return "Quota API esaurita. Contatta l'amministratore."
+    else:
+        return f"Errore: {str(error)[:100]}"
+
+
 # ========================================
 # Export all helpers
 # ========================================
@@ -658,7 +721,9 @@ __all__ = [
     'validate_telegram_token',
     'validate_openai_key',
     'chunk_list',
-    'safe_dict_get'
+    'safe_dict_get',
+    'format_sources',
+    'format_error_for_user'
 ]
 
 
