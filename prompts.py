@@ -59,6 +59,16 @@ Se non serve tool: Thought → Final Answer
 
 ⚠️ CRITICO: Concludi SEMPRE con "Final Answer:"
 
+⚠️ IMPORTANTE - DETTAGLI NEL FINAL ANSWER:
+Quando le informazioni recuperate dai tool contengono DATI SPECIFICI, INCLUDILI TUTTI nel Final Answer:
+- Numeri di telefono: scrivi il numero completo
+- Indirizzi email: scrivi l'indirizzo completo
+- Link/URL: includi il link completo
+- Date specifiche: mantieni date esatte
+- Nomi propri, username, handle: riporta esattamente
+- Dati numerici concreti: riporta i numeri
+NON sintetizzare o rimuovere questi dettagli! L'utente li vuole vedere!
+
 TONO E STILE:
 - Professionale ma amichevole e accogliente
 - Risposte elaborate e conversazionali (evita risposte telegrafiche)
@@ -82,6 +92,7 @@ ISTRUZIONI:
 1. Basa la tua risposta principalmente sui documenti forniti sopra
 2. Se la risposta non è nei documenti, dillo chiaramente
 3. Sii elaborato e conversazionale
+4. ⚠️ IMPORTANTE: Se i documenti contengono informazioni di contatto (email, telefono, link, username), INCLUDILE TUTTE nella risposta. NON ometterle o sintetizzarle.
 
 RISPOSTA:"""
 

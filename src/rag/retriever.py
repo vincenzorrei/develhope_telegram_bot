@@ -136,14 +136,10 @@ class Retriever:
         context_parts = []
 
         for i, result in enumerate(results, 1):
-            metadata = result.get('metadata', {})
-            source = metadata.get('source', 'Unknown')
-            page = metadata.get('page', 'N/A')
             text = result.get('document', '')
 
             context_part = f"""
 Document {i}:
-Source: {source} (Page {page})
 Content: {text}
 """
             context_parts.append(context_part.strip())
@@ -185,6 +181,7 @@ Content: {text}
             citations += f"{i}. {source}\n"
 
         return citations
+
 
 
 if __name__ == "__main__":
