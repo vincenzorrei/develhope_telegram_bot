@@ -296,9 +296,12 @@ class LangChainEngine:
         try:
             # Get user memory
             memory = self._get_or_create_memory(user_id)
-            chat_history = memory.buffer_as_messages if hasattr(memory, 'buffer_as_messages') else []
 
-            logger.debug(f"[MEMORY] {len(chat_history)} messages")
+            # Load chat history from memory
+            memory_variables = memory.load_memory_variables({})
+            chat_history = memory_variables.get("chat_history", [])
+
+            logger.info(f"[MEMORY] {len(chat_history)} messages")
 
             # Agent orchestration
             result = await self.agent_executor.ainvoke({

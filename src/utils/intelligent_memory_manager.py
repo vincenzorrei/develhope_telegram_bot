@@ -313,7 +313,7 @@ class IntelligentMemoryManager:
 
             # Restore summary
             if 'summary' in data and data['summary']:
-                memory.buffer = data['summary']
+                memory.moving_summary_buffer = data['summary']
 
             # Restore messages
             for msg_data in data.get('messages', []):
@@ -435,7 +435,7 @@ class IntelligentMemoryManager:
             llm=self.llm,
             max_token_limit=self.token_limit,
             memory_key="chat_history",
-            return_messages=True,
+            return_messages=False,
             output_key="output"
         )
 
