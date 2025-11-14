@@ -14,7 +14,7 @@ import tempfile
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
 
-from config import admin_config, bot_config
+from config import admin_config, bot_config, memory_config
 from prompts import prompts
 from telegram_messages import telegram_messages
 from src.telegram.auth import admin_only, user_or_admin
@@ -467,11 +467,11 @@ async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         docs_size_mb = get_directory_size_mb("./data/documents")
         total_size_mb = stats['storage_size_mb'] + docs_size_mb
 
-        # Calculate active users from memory manager
+        # Calculate active users from session store
         langchain_engine = context.bot_data.get('langchain_engine')
         active_users_count = 0
-        if langchain_engine and hasattr(langchain_engine, 'memory_manager'):
-            active_users_count = len(langchain_engine.memory_manager.user_memories)
+        if langchain_engine and hasattr(langchain_engine, 'session_store'):
+            active_users_count = len(langchain_engine.session_store)
 
         message = telegram_messages.STATS_TEMPLATE.format(
             total_docs=stats['total_documents'],
@@ -516,35 +516,42 @@ async def memory_stats_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     try:
-        # Get stats da IntelligentMemoryManager
-        stats = langchain_engine.memory_manager.get_stats()
+        # Get stats da session store
+        session_store = langchain_engine.session_store
+        total_users = len(session_store)
+
+        # Calculate total messages and estimate RAM
+        total_messages = 0
+        estimated_tokens = 0
+
+        for user_id, history in session_store.items():
+            msg_count = len(history.messages)
+            total_messages += msg_count
+            # Stima 150 token per messaggio
+            estimated_tokens += msg_count * 150
+
+        # Stima RAM (1 token ≈ 4 bytes)
+        estimated_ram_mb = (estimated_tokens * 4) / (1024 * 1024)
 
         # Format message
         message = f"""📊 **Statistiche Memoria Conversazionale**
 
 👥 **Utenti**
-   • In RAM: {stats['users_in_ram']}/{stats['max_cached_users']}
-   • Totale su disco: {stats['total_users']}
+   • Utenti attivi: {total_users}
+   • Messaggi totali: {total_messages}
+   • Media msg/utente: {total_messages / total_users if total_users > 0 else 0:.1f}
 
-💾 **RAM Usage**
-   • Tokens stimati: {stats['estimated_tokens']}
-   • RAM stimata: {stats['estimated_ram_mb']} MB
-
-💿 **Disk Usage**
-   • Spazio conversazioni: {stats['disk_usage_mb']} MB
-
-🔄 **Operations**
-   • Summarizations: {stats['summarizations_count']}
-   • Evictions da RAM: {stats['evictions_count']}
+💾 **Memory Usage**
+   • Tokens stimati: {estimated_tokens:,}
+   • RAM stimata: {estimated_ram_mb:.2f} MB
 
 ⚙️ **Configuration**
-   • Token limit: {langchain_engine.memory_manager.token_limit}
-   • Save interval: ogni {langchain_engine.memory_manager.save_interval} msg
-   • Max cached: {stats['max_cached_users']} users
+   • Summary buffer threshold: {memory_config.MAX_TOKENS_BEFORE_SUMMARY} tokens
+   • Recent messages kept: {memory_config.RECENT_MESSAGES_TO_KEEP}
+   • Summary model: {memory_config.SUMMARY_MODEL}
 
-💡 **Health Status**
-RAM: {'✅ OK' if stats['estimated_ram_mb'] < 400 else '⚠️ HIGH'}
-Disk: {'✅ OK' if stats['disk_usage_mb'] < 450 else '⚠️ HIGH'}
+💡 **Status**
+{'✅ Memoria sotto controllo' if estimated_ram_mb < 100 else '⚠️ Considera pulizia memoria per utenti inattivi'}
 """
 
         await update.message.reply_text(message, parse_mode='Markdown')

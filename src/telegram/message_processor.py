@@ -42,12 +42,12 @@ class MessageProcessor:
 
     def _is_valid_response(self, response: Optional[str]) -> bool:
         """
-        Valida se una risposta dell'agent è accettabile.
+        Valida se una risposta del LLM è accettabile.
 
         Una risposta valida deve:
         - Esistere (not None/empty)
         - Essere sufficientemente lunga (> 100 chars)
-        - Non contenere messaggi di errore
+        - Non contenere messaggi di errore generici
 
         Args:
             response: Risposta da validare
@@ -60,8 +60,7 @@ class MessageProcessor:
 
         return (
             len(response) > 100 and
-            "Invalid Format" not in response and
-            "parsing error" not in response.lower()
+            "errore" not in response.lower()[:50]  # Check solo inizio risposta
         )
 
     async def _try_fallback_rag(self, text: str) -> str:

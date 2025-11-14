@@ -210,41 +210,6 @@ class RAGConfig:
 
 
 # ============================================
-# Memory Configuration
-# ============================================
-class MemoryConfig:
-    """
-    Configurazione memoria conversazionale intelligente.
-
-    Sistema ibrido con IntelligentMemoryManager:
-    - Short-term: ultimi N messaggi intatti (dettagli)
-    - Long-term: riassunti automatici quando supera token_limit
-    - LRU eviction: max users in RAM con auto-save su disco
-    - Auto-cleanup: elimina conversazioni vecchie
-
-    STUDENTI: Sperimentate con questi parametri per ottimizzare!
-    """
-    # Token limit prima di summarization automatica
-    # Quando supera questo limite, riassume messaggi vecchi
-    TOKEN_LIMIT: int = int(os.getenv("MEMORY_TOKEN_LIMIT", "1500"))
-
-    # Salva su disco ogni N messaggi (auto-save periodico)
-    SAVE_INTERVAL: int = int(os.getenv("MEMORY_SAVE_INTERVAL", "5"))
-
-    # Max cached users in RAM (LRU eviction dopo questo limite)
-    # Railway Hobby Plan ha 512MB RAM → 100 users = ~400MB safe
-    MAX_CACHED_USERS: int = int(os.getenv("MAX_CACHED_USERS", "100"))
-
-    # Max messaggi per utente (hard limit fallback)
-    # Previene memory explosion se summarization fallisce
-    MAX_MESSAGES_PER_USER: int = int(os.getenv("MAX_MESSAGES_PER_USER", "200"))
-
-    # Auto-cleanup: elimina conversazioni inattive dopo N giorni
-    # GDPR-friendly e previene disk overflow
-    CLEANUP_DAYS: int = int(os.getenv("CLEANUP_DAYS", "30"))
-
-
-# ============================================
 # Paths Configuration
 # ============================================
 class PathsConfig:
@@ -297,24 +262,40 @@ class LoggingConfig:
 # ============================================
 class AgentConfig:
     """
-    Configurazione LangChain Agent.
+    Configurazione LLM con function calling.
 
     STUDENTI: Sperimentate con max_iterations e verbose!
     """
-    # Max iterations per agent execution (ridotto da 5 a 3 per evitare loop errori)
+    # Max iterations per function calling loop (ridotto a 3 per evitare loop eccessivi)
     MAX_ITERATIONS: int = 3
 
-    # Max retries in caso di errori parsing (retry automatico trasparente)
+    # Max retries in caso di errori (retry automatico trasparente)
     MAX_RETRIES: int = 2
 
-    # Verbose mode (stampa reasoning steps)
+    # Verbose mode (stampa function calls e tool execution)
     VERBOSE: bool = True
 
-    # Agent type
-    AGENT_TYPE: str = "react"  # ReAct pattern
 
-    # Early stopping method (async requires "force")
-    EARLY_STOPPING_METHOD: str = "force"  # "force" or "generate" (use "force" for async)
+# ============================================
+# Memory Configuration
+# ============================================
+class MemoryConfig:
+    """
+    Configurazione memoria conversazionale con summary buffer.
+
+    STUDENTI: Modificate le soglie per sperimentare!
+    """
+    # Soglia token: se conversazione supera questo limite, attiva summary buffer
+    MAX_TOKENS_BEFORE_SUMMARY: int = 2000
+
+    # Numero messaggi recenti da mantenere intatti nel summary buffer
+    RECENT_MESSAGES_TO_KEEP: int = 10
+
+    # Modello LLM per generare riassunti (più economico del modello principale)
+    SUMMARY_MODEL: str = "gpt-4o-mini"
+
+    # Token approssimativi per messaggio (usato per stima veloce)
+    APPROX_TOKENS_PER_MESSAGE: int = 150
 
 
 # ============================================
@@ -363,10 +344,10 @@ admin_config = AdminConfig()
 bot_config = BotConfig()
 llm_config = LLMConfig()
 rag_config = RAGConfig()
-memory_config = MemoryConfig()
 paths_config = PathsConfig()
 logging_config = LoggingConfig()
 agent_config = AgentConfig()
+memory_config = MemoryConfig()
 feature_flags = FeatureFlags()
 rate_limit_config = RateLimitConfig()
 

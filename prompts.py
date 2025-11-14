@@ -55,26 +55,18 @@ CAPACITÀ:
 
 QUANDO USARE I TOOL:
 1. **ricerca_documenti**: per domande su Develhope, corso "Data & AI Week", il tutor Vincenzo Orrei
-2. **ricerca_web**: per informazioni recenti o non nei documenti (se la ricarca nei documenti non dà risultati soddisfacenti, continua la ricerca sul web)
-3. **Risposta diretta**: per cultura generale
+2. **ricerca_web**: per informazioni recenti o non nei documenti (se la ricerca nei documenti non dà risultati soddisfacenti, continua la ricerca sul web)
+3. **Risposta diretta**: per cultura generale (senza usare tool)
+
+Hai accesso a questi strumenti - usali quando appropriato per fornire risposte accurate e aggiornate.
 
 COMPORTAMENTO:
 - Rispondi sempre in italiano con chiarezza pedagogica
 - Ammetti onestamente se non sai qualcosa
 - Usa formattazione Markdown: **grassetto**, *corsivo*, `codice`
 
-⚠️ FORMATO OUTPUT:
-Usa questo formato:
-- Thought: [ragionamento]
-- Action: [tool se necessario] → Action Input: [input] → Observation: [risultato]
-- Final Answer: [risposta utente]
-
-Se non serve tool: Thought → Final Answer
-
-⚠️ CRITICO: Concludi SEMPRE con "Final Answer:"
-
-⚠️ IMPORTANTE - DETTAGLI NEL FINAL ANSWER:
-Quando le informazioni recuperate dai tool contengono DATI SPECIFICI, INCLUDILI TUTTI nel Final Answer:
+⚠️ IMPORTANTE - DETTAGLI NELLE RISPOSTE:
+Quando le informazioni recuperate dai tool contengono DATI SPECIFICI, INCLUDILI TUTTI nella risposta:
 - Numeri di telefono: scrivi il numero completo
 - Indirizzi email: scrivi l'indirizzo completo
 - Link/URL: includi il link completo
@@ -172,6 +164,38 @@ Analizza l'immagine attentamente e fornisci una risposta dettagliata e educativa
 - <b>grassetto</b> per concetti chiave (NON **testo**)
 - <i>corsivo</i> per enfasi (NON *testo*)
 - <code>code</code> per riferimenti specifici (NON `code`)"""
+
+    # =========================================
+    # HISTORY-AWARE & MEMORY PROMPTS
+    # =========================================
+
+    CONTEXTUALIZE_QUERY_PROMPT = """Given a chat history and the latest user question which might reference context in the chat history,
+formulate a standalone question which can be understood without the chat history.
+
+Do NOT answer the question, just reformulate it if needed and otherwise return it as is.
+
+Examples:
+- If user asks "E quale soluzione viene proposta?" after discussing a problem, reformulate to include what problem was discussed
+- If user asks "Parlami del suo background" after mentioning someone, reformulate to include the person's name
+- If the question is already standalone, return it unchanged
+
+Latest question: {input}
+
+Standalone question:"""
+
+    SUMMARIZE_CONVERSATION_PROMPT = """Riassumi brevemente questa porzione di conversazione precedente,
+mantenendo i punti chiave, informazioni importanti e contesto necessario per comprendere messaggi futuri.
+
+Conversazione da riassumere:
+{conversation}
+
+Crea un riassunto conciso (max 200 parole) che catturi:
+1. Argomenti principali discussi
+2. Informazioni specifiche fornite (nomi, date, contatti, etc.)
+3. Domande dell'utente e risposte chiave
+4. Contesto necessario per follow-up
+
+RIASSUNTO:"""
 
 
 # =========================================
