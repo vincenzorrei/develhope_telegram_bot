@@ -46,7 +46,7 @@ class MessageProcessor:
 
         Una risposta valida deve:
         - Esistere (not None/empty)
-        - Essere sufficientemente lunga (> 100 chars)
+        - Essere sufficientemente lunga (> 20 chars) - permette saluti brevi
         - Non contenere messaggi di errore generici
 
         Args:
@@ -58,8 +58,11 @@ class MessageProcessor:
         if not response:
             return False
 
+        # Soglia minima ridotta per permettere risposte brevi valide (saluti, conferme, etc.)
+        MIN_RESPONSE_LENGTH = 20
+
         return (
-            len(response) > 100 and
+            len(response) > MIN_RESPONSE_LENGTH and
             "errore" not in response.lower()[:50]  # Check solo inizio risposta
         )
 
