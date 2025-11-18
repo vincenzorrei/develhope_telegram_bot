@@ -131,14 +131,14 @@ def setup_signal_handlers(components=None):
         """Handler per CTRL+C con graceful shutdown"""
         main_logger.info("\n\n[SHUTDOWN] Received interrupt signal")
 
-        # Force save all memories prima di uscire
+        # Session store is in-memory, no need to save to disk
         if components and 'langchain_engine' in components:
             try:
-                main_logger.info("[SHUTDOWN] Saving all user memories to disk...")
-                saved_count = components['langchain_engine'].memory_manager.force_save_all()
-                main_logger.info(f"[OK] Saved {saved_count} user memories")
+                session_count = len(components['langchain_engine'].session_store)
+                main_logger.info(f"[SHUTDOWN] Clearing {session_count} active session(s)...")
+                main_logger.info(f"[OK] Session store will be cleared on exit")
             except Exception as e:
-                main_logger.error(f"[ERROR] Failed to save memories: {e}")
+                main_logger.error(f"[ERROR] Failed to check sessions: {e}")
 
         log_shutdown_info()
         sys.exit(0)
@@ -179,16 +179,10 @@ def main():
     setup_signal_handlers(components=components)
 
     # ========================================
-    # Cleanup old conversations (startup)
+    # Session store info (in-memory, no cleanup needed)
     # ========================================
-    main_logger.info("Running memory cleanup (startup)...")
-    try:
-        deleted_count = components['langchain_engine'].memory_manager.cleanup_old_conversations(
-            days=config.memory_config.CLEANUP_DAYS
-        )
-        main_logger.info(f"[OK] Cleaned {deleted_count} old conversations")
-    except Exception as e:
-        main_logger.warning(f"[WARN] Cleanup failed: {e}")
+    main_logger.info("[OK] Session store initialized (in-memory)")
+    main_logger.info(f"     Summary buffer threshold: {config.memory_config.MAX_TOKENS_BEFORE_SUMMARY} tokens")
 
     # ========================================
     # Setup handlers

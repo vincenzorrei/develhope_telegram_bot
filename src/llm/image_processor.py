@@ -13,10 +13,11 @@ IMPORTANTE per STUDENTI:
 import base64
 from typing import Optional
 from io import BytesIO
-from openai import OpenAI
 
-from config import api_keys, llm_config
+from config import llm_config
+from prompts import prompts
 from src.utils.logger import get_logger
+from src.utils.shared_clients import get_openai_client
 
 logger = get_logger(__name__)
 
@@ -51,8 +52,8 @@ class ImageProcessor:
         logger.info(f"[INIT] ImageProcessor")
         logger.info(f"       Model: {self.model}")
 
-        # Initialize OpenAI client
-        self.client = OpenAI(api_key=api_keys.OPENAI_API_KEY)
+        # Use shared OpenAI client (evita duplicazioni)
+        self.client = get_openai_client()
 
     def _encode_image(self, image_bytes: bytes) -> str:
         """
@@ -99,15 +100,8 @@ class ImageProcessor:
 
         # Default prompt se non specificato
         if not prompt:
-            prompt = """Analizza questa immagine in dettaglio.
-
-Descrivi:
-1. Cosa vedi (oggetti principali)
-2. Contesto e ambiente
-3. Testo visibile (se presente)
-4. Rilevanza educativa (se applicabile)
-
-Sii chiaro e pedagogico nella descrizione."""
+            # Usa prompt centralizzato da prompts.py
+            prompt = prompts.VISION_ANALYSIS_PROMPT.format(caption="")
 
         logger.info(f"[VISION] Processing image ({len(image_bytes)} bytes)...")
 
@@ -203,11 +197,8 @@ Restituisci SOLO il testo estratto, senza commenti aggiuntivi."""
             ...     question="Spiega questo diagramma"
             ... )
         """
-        qa_prompt = f"""Basandoti su questa immagine, rispondi alla seguente domanda in modo chiaro e educativo.
-
-DOMANDA: {question}
-
-Fornisci una risposta dettagliata ma concisa."""
+        # Usa prompt centralizzato da prompts.py
+        qa_prompt = prompts.VISION_QUESTION_PROMPT.format(question=question)
 
         return self.analyze_image(
             image_bytes=image_bytes,

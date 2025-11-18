@@ -25,11 +25,9 @@ from docx import Document
 # LangChain text splitters
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# OpenAI for summary generation
-from openai import OpenAI
-
-from config import rag_config, paths_config, api_keys
+from config import rag_config, paths_config
 from src.utils.logger import get_logger
+from src.utils.shared_clients import get_openai_client
 from src.utils.helpers import (
     extract_file_extension,
     is_supported_document,
@@ -101,7 +99,8 @@ class DocumentProcessor:
         # ========================================
         # Setup OpenAI client for summary generation
         # ========================================
-        self.openai_client = OpenAI(api_key=api_keys.OPENAI_API_KEY)
+        # Use shared OpenAI client (evita duplicazioni)
+        self.openai_client = get_openai_client()
 
     def generate_summary(self, text: str, filename: str) -> str:
         """

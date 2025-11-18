@@ -83,16 +83,42 @@ class VectorStoreManager:
             raise
 
         # ========================================
-        # Collection Setup
+        # Collection Setup with OpenAI Embeddings
         # ========================================
+        # IMPORTANTE: Configuriamo ChromaDB per usare OpenAI embeddings
+        # invece del default (all-MiniLM-L6-v2 a 384 dims)
         try:
-            # Get or create collection
+            # IMPORTANTE: ChromaDB con OpenAI richiede che gli embeddings
+            # vengano passati esplicitamente via add(), NON via embedding_function
+            # nella collection (bug/limitazione con OpenAI v1.x API)
+            #
+            # Quindi creiamo la collection SENZA embedding_function
+            # e passeremo gli embeddings pre-calcolati in add_document()
+
+            logger.info(f"   Embedding model: {rag_config.EMBEDDING_MODEL}")
+            logger.info("   Note: Using explicit embeddings (not auto-generated)")
+
+            # Get or create collection SENZA embedding_function
             self.collection = self.client.get_or_create_collection(
                 name=self.collection_name,
-                metadata={"description": "Educational bot documents collection"}
+                metadata={
+                    "description": "Educational bot documents collection",
+                    "embedding_model": rag_config.EMBEDDING_MODEL,
+                    "embedding_mode": "explicit"  # Embeddings passed explicitly
+                }
             )
             logger.info(f"✅ Collection '{self.collection_name}' pronta")
             logger.info(f"   Chunks esistenti: {self.collection.count()}")
+
+            # Initialize embedder once (reused across methods)
+            from langchain_openai import OpenAIEmbeddings
+            from config import api_keys
+
+            self.embedder = OpenAIEmbeddings(
+                model=rag_config.EMBEDDING_MODEL,
+                openai_api_key=api_keys.OPENAI_API_KEY
+            )
+            logger.info("✅ OpenAI Embedder initialized")
 
         except Exception as e:
             logger.error(f"❌ Errore creazione collection: {e}")
@@ -153,21 +179,20 @@ class VectorStoreManager:
         logger.info(f"📝 Aggiunta documento '{doc_id}' con {len(chunks)} chunks...")
 
         try:
-            # Add to ChromaDB
-            if embeddings:
-                self.collection.add(
-                    ids=chunk_ids,
-                    documents=chunks,
-                    metadatas=metadatas,
-                    embeddings=embeddings
-                )
-            else:
-                # ChromaDB genera embeddings automaticamente
-                self.collection.add(
-                    ids=chunk_ids,
-                    documents=chunks,
-                    metadatas=metadatas
-                )
+            # Se embeddings non forniti, calcolali con OpenAI
+            if not embeddings:
+                logger.info("   Calculating embeddings with OpenAI...")
+                # Usa embedder pre-inizializzato (evita duplicazione)
+                embeddings = self.embedder.embed_documents(chunks)
+                logger.info(f"   ✅ Generated {len(embeddings)} embeddings")
+
+            # Add to ChromaDB con embeddings espliciti
+            self.collection.add(
+                ids=chunk_ids,
+                documents=chunks,
+                metadatas=metadatas,
+                embeddings=embeddings
+            )
 
             logger.info(f"✅ Documento '{doc_id}' aggiunto con successo")
             return len(chunks)
@@ -254,11 +279,14 @@ class VectorStoreManager:
         logger.debug(f"🔍 Similarity search: '{query}' (top-{k})")
 
         try:
-            # Query ChromaDB
+            # Calcola embedding query con embedder pre-inizializzato
+            query_embedding = self.embedder.embed_query(query)
+
+            # Query ChromaDB con embedding esplicito
             results = self.collection.query(
-                query_texts=[query],
+                query_embeddings=[query_embedding],
                 n_results=k,
-                where=filter  # Filtri opzionali
+                where=filter
             )
 
             # Format results

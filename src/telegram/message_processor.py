@@ -40,6 +40,54 @@ class MessageProcessor:
 
         logger.info("[INIT] MessageProcessor ready")
 
+    def _is_valid_response(self, response: Optional[str]) -> bool:
+        """
+        Valida se una risposta del LLM è accettabile.
+
+        Una risposta valida deve:
+        - Esistere (not None/empty)
+        - Essere sufficientemente lunga (> 20 chars) - permette saluti brevi
+        - Non contenere messaggi di errore generici
+
+        Args:
+            response: Risposta da validare
+
+        Returns:
+            True se valida, False altrimenti
+        """
+        if not response:
+            return False
+
+        # Soglia minima ridotta per permettere risposte brevi valide (saluti, conferme, etc.)
+        MIN_RESPONSE_LENGTH = 20
+
+        return (
+            len(response) > MIN_RESPONSE_LENGTH and
+            "errore" not in response.lower()[:50]  # Check solo inizio risposta
+        )
+
+    async def _try_fallback_rag(self, text: str) -> str:
+        """
+        Esegue fallback usando RAG diretto (bypass agent).
+
+        Questo metodo viene usato quando l'agent ReAct fallisce
+        ripetutamente, fornendo una risposta diretta dai documenti.
+
+        Args:
+            text: Query utente
+
+        Returns:
+            Risposta da RAG diretto o messaggio di errore
+        """
+        logger.info(f"🔧 [FALLBACK] Using direct RAG search (bypassing agent)...")
+        try:
+            response = await self.langchain_engine._search_documents(text)
+            logger.info(f"✅ [FALLBACK] Direct RAG succeeded ({len(response)} chars)")
+            return response
+        except Exception as e:
+            logger.error(f"❌ [ERROR] Fallback also failed: {e}")
+            return "Mi dispiace, ho riscontrato problemi tecnici. Riprova tra poco."
+
     async def process_text(
         self,
         text: str,
@@ -77,16 +125,8 @@ class MessageProcessor:
                     user_id=user_id
                 )
 
-                # Verifica se risposta è valida
-                # Una risposta valida dovrebbe essere > 100 caratteri normalmente
-                is_valid = (
-                    response and
-                    len(response) > 100 and
-                    "Invalid Format" not in response and
-                    "parsing error" not in response.lower()
-                )
-
-                if is_valid:
+                # Verifica se risposta è valida usando helper method
+                if self._is_valid_response(response):
                     logger.info(f"✅ [TEXT] Agent succeeded on attempt {attempt + 1}/{max_retries + 1}")
                     break  # Success!
                 else:
@@ -112,15 +152,9 @@ class MessageProcessor:
         # Fallback: RAG Diretto (Bypass Agent)
         # ========================================
         # Se dopo retry la risposta è ancora invalida, usa RAG diretto
-        if not response or len(response) < 100 or "Invalid Format" in response:
-            logger.info(f"🔧 [FALLBACK] Using direct RAG search (bypassing agent)...")
+        if not self._is_valid_response(response):
             logger.info(f"    Reason: response={'None' if not response else f'{len(response)} chars'}")
-            try:
-                response = await self.langchain_engine._search_documents(text)
-                logger.info(f"✅ [FALLBACK] Direct RAG succeeded ({len(response)} chars)")
-            except Exception as e:
-                logger.error(f"❌ [ERROR] Fallback also failed: {e}")
-                response = f"Mi dispiace, ho riscontrato problemi tecnici. Riprova tra poco."
+            response = await self._try_fallback_rag(text)
 
         # ========================================
         # Post-Processing

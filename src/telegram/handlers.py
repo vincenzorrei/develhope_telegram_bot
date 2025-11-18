@@ -14,8 +14,9 @@ import tempfile
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
 
-from config import admin_config, bot_config
+from config import admin_config, bot_config, memory_config
 from prompts import prompts
+from telegram_messages import telegram_messages
 from src.telegram.auth import admin_only, user_or_admin
 from src.utils.logger import get_logger
 from src.utils.helpers import (
@@ -26,6 +27,26 @@ from src.utils.helpers import (
 )
 
 logger = get_logger(__name__)
+
+
+# ========================================
+# HELPER FUNCTIONS
+# ========================================
+
+def format_error_message(error: Exception, context: str = "") -> str:
+    """
+    Formatta messaggio di errore in modo standardizzato.
+
+    Args:
+        error: Eccezione da formattare
+        context: Contesto opzionale (es: "recupero documenti")
+
+    Returns:
+        Messaggio di errore formattato
+    """
+    if context:
+        return f"❌ Errore {context}: {str(error)[:200]}"
+    return f"❌ Errore: {str(error)[:200]}"
 
 
 # ========================================
@@ -64,7 +85,7 @@ async def document_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     document = update.message.document
 
     if not document:
-        await update.message.reply_text("Errore: Nessun documento ricevuto.")
+        await update.message.reply_text("❌ Errore: Nessun documento ricevuto.")
         return
 
     filename = document.file_name
@@ -80,14 +101,14 @@ async def document_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_supported_document(filename):
         file_ext = extract_file_extension(filename)
         await update.message.reply_text(
-            prompts.ERROR_UNSUPPORTED_FORMAT.format(file_format=file_ext)
+            telegram_messages.ERROR_UNSUPPORTED_FORMAT.format(file_format=file_ext)
         )
         return
 
     # Check dimensione
     if file_size > bot_config.MAX_FILE_SIZE_BYTES:
         await update.message.reply_text(
-            prompts.ERROR_FILE_TOO_LARGE.format(
+            telegram_messages.ERROR_FILE_TOO_LARGE.format(
                 max_size_mb=bot_config.MAX_FILE_SIZE_MB,
                 file_size_mb=round(file_size / (1024*1024), 2)
             )
@@ -98,7 +119,7 @@ async def document_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Processing
     # ========================================
 
-    await update.message.reply_text(prompts.PROCESSING_DOCUMENT)
+    await update.message.reply_text(telegram_messages.PROCESSING_DOCUMENT)
 
     try:
         # Download file
@@ -127,7 +148,7 @@ async def document_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         stats = vector_store.get_stats()
 
         # Success message con sommario
-        success_message = prompts.DOCUMENT_ADDED_SUCCESS.format(
+        success_message = telegram_messages.DOCUMENT_ADDED_SUCCESS.format(
             filename=filename,
             num_chunks=num_chunks,
             doc_id=doc_id,
@@ -155,7 +176,7 @@ async def document_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         traceback.print_exc()
 
         await update.message.reply_text(
-            prompts.ERROR_PROCESSING_DOCUMENT.format(error=str(e)[:200])
+            telegram_messages.ERROR_PROCESSING_DOCUMENT.format(error=str(e)[:200])
         )
 
 
@@ -172,7 +193,7 @@ async def list_docs_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         documents = vector_store.list_all_documents()
 
         if not documents:
-            await update.message.reply_text(prompts.NO_DOCUMENTS_FOUND)
+            await update.message.reply_text(telegram_messages.NO_DOCUMENTS_FOUND)
             return
 
         # Format list usando HTML invece di Markdown per evitare problemi con caratteri speciali
@@ -189,8 +210,8 @@ async def list_docs_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"[ERROR] List docs failed: {e}")
-        # Non usare parse_mode per i messaggi di errore per evitare problemi con caratteri speciali
-        await update.message.reply_text(f"Errore nel recupero dei documenti: {str(e)}")
+        # Usa formato standardizzato per errori
+        await update.message.reply_text(format_error_message(e, "nel recupero dei documenti"))
 
 
 @admin_only
@@ -246,7 +267,7 @@ async def delete_doc_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 logger.warning(f"[WARN] Could not delete file {filepath.name}: {e}")
 
         # Success message
-        message = prompts.DOCUMENT_DELETED_SUCCESS.format(
+        message = telegram_messages.DOCUMENT_DELETED_SUCCESS.format(
             doc_id=doc_id,
             filename=doc_info['source']
         )
@@ -272,7 +293,7 @@ async def delete_doc_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.error(f"[ERROR] Delete doc failed: {e}")
         import traceback
         traceback.print_exc()
-        await update.message.reply_text(f"Errore: {str(e)}")
+        await update.message.reply_text(format_error_message(e))
 
 
 @admin_only
@@ -446,7 +467,13 @@ async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         docs_size_mb = get_directory_size_mb("./data/documents")
         total_size_mb = stats['storage_size_mb'] + docs_size_mb
 
-        message = prompts.STATS_TEMPLATE.format(
+        # Calculate active users from session store
+        langchain_engine = context.bot_data.get('langchain_engine')
+        active_users_count = 0
+        if langchain_engine and hasattr(langchain_engine, 'session_store'):
+            active_users_count = len(langchain_engine.session_store)
+
+        message = telegram_messages.STATS_TEMPLATE.format(
             total_docs=stats['total_documents'],
             total_chunks=stats['total_chunks'],
             collection_name=stats['collection_name'],
@@ -454,7 +481,7 @@ async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             docs_size_mb=round(docs_size_mb, 2),
             total_size_mb=round(total_size_mb, 2),
             limit_mb=2000,
-            active_users=len(context.bot_data.get('langchain_engine', {}).user_memories or {}),
+            active_users=active_users_count,
             admin_count=len(admin_config.ADMIN_USER_IDS),
             llm_model=context.bot_data.get('llm_model', 'N/A'),
             embedding_model=context.bot_data.get('embedding_model', 'N/A'),
@@ -489,35 +516,42 @@ async def memory_stats_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     try:
-        # Get stats da IntelligentMemoryManager
-        stats = langchain_engine.memory_manager.get_stats()
+        # Get stats da session store
+        session_store = langchain_engine.session_store
+        total_users = len(session_store)
+
+        # Calculate total messages and estimate RAM
+        total_messages = 0
+        estimated_tokens = 0
+
+        for user_id, history in session_store.items():
+            msg_count = len(history.messages)
+            total_messages += msg_count
+            # Stima 150 token per messaggio
+            estimated_tokens += msg_count * 150
+
+        # Stima RAM (1 token ≈ 4 bytes)
+        estimated_ram_mb = (estimated_tokens * 4) / (1024 * 1024)
 
         # Format message
         message = f"""📊 **Statistiche Memoria Conversazionale**
 
 👥 **Utenti**
-   • In RAM: {stats['users_in_ram']}/{stats['max_cached_users']}
-   • Totale su disco: {stats['total_users']}
+   • Utenti attivi: {total_users}
+   • Messaggi totali: {total_messages}
+   • Media msg/utente: {total_messages / total_users if total_users > 0 else 0:.1f}
 
-💾 **RAM Usage**
-   • Tokens stimati: {stats['estimated_tokens']}
-   • RAM stimata: {stats['estimated_ram_mb']} MB
-
-💿 **Disk Usage**
-   • Spazio conversazioni: {stats['disk_usage_mb']} MB
-
-🔄 **Operations**
-   • Summarizations: {stats['summarizations_count']}
-   • Evictions da RAM: {stats['evictions_count']}
+💾 **Memory Usage**
+   • Tokens stimati: {estimated_tokens:,}
+   • RAM stimata: {estimated_ram_mb:.2f} MB
 
 ⚙️ **Configuration**
-   • Token limit: {langchain_engine.memory_manager.token_limit}
-   • Save interval: ogni {langchain_engine.memory_manager.save_interval} msg
-   • Max cached: {stats['max_cached_users']} users
+   • Summary buffer threshold: {memory_config.MAX_TOKENS_BEFORE_SUMMARY} tokens
+   • Recent messages kept: {memory_config.RECENT_MESSAGES_TO_KEEP}
+   • Summary model: {memory_config.SUMMARY_MODEL}
 
-💡 **Health Status**
-RAM: {'✅ OK' if stats['estimated_ram_mb'] < 400 else '⚠️ HIGH'}
-Disk: {'✅ OK' if stats['disk_usage_mb'] < 450 else '⚠️ HIGH'}
+💡 **Status**
+{'✅ Memoria sotto controllo' if estimated_ram_mb < 100 else '⚠️ Considera pulizia memoria per utenti inattivi'}
 """
 
         await update.message.reply_text(message, parse_mode='Markdown')
@@ -544,9 +578,9 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin = admin_config.is_admin(user.id)
 
     if is_admin:
-        message = prompts.WELCOME_ADMIN
+        message = telegram_messages.WELCOME_ADMIN
     else:
-        message = prompts.WELCOME_USER
+        message = telegram_messages.WELCOME_USER
 
     await update.message.reply_text(message)
 
@@ -562,9 +596,9 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin = admin_config.is_admin(user.id)
 
     if is_admin:
-        message = prompts.HELP_MESSAGE_ADMIN
+        message = telegram_messages.HELP_MESSAGE_ADMIN
     else:
-        message = prompts.HELP_MESSAGE_USER
+        message = telegram_messages.HELP_MESSAGE_USER
 
     await update.message.reply_text(message)
 
@@ -579,7 +613,7 @@ async def clear_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     langchain_engine.clear_memory(user_id)
 
-    await update.message.reply_text(prompts.MEMORY_CLEARED)
+    await update.message.reply_text(telegram_messages.MEMORY_CLEARED)
 
 
 @user_or_admin
@@ -592,7 +626,7 @@ async def voice_on_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Store in user_data
     context.user_data['voice_mode'] = True
 
-    await update.message.reply_text(prompts.VOICE_ENABLED)
+    await update.message.reply_text(telegram_messages.VOICE_ENABLED)
     logger.info(f"[VOICE] Enabled for user {user_id}")
 
 
@@ -605,7 +639,7 @@ async def voice_off_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data['voice_mode'] = False
 
-    await update.message.reply_text(prompts.VOICE_DISABLED)
+    await update.message.reply_text(telegram_messages.VOICE_DISABLED)
     logger.info(f"[VOICE] Disabled for user {user_id}")
 
 
@@ -656,7 +690,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         traceback.print_exc()
 
         await update.message.reply_text(
-            prompts.ERROR_GENERIC.format(error_message=str(e)[:200])
+            telegram_messages.ERROR_GENERIC.format(error_message=str(e)[:200])
         )
 
 
