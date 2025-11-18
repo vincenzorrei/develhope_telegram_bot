@@ -17,19 +17,48 @@ Bot Telegram intelligente con Retrieval-Augmented Generation (RAG), LangChain ag
 
 ### Opzione 1: Railway (Consigliato per deploy in cloud)
 
+Railway è una piattaforma cloud che permette di deployare il bot 24/7 senza dover lasciare il computer acceso.
+
+**Setup Railway (passo-passo):**
+
 1. **Fork questo repository** su GitHub
-2. **Crea progetto su Railway** (railway.app)
-3. **Collega repository GitHub** al progetto Railway
-4. **Configura Environment Variables**:
+   - Vai su github.com e fai il fork del progetto
+   - Questo crea una copia del codice nel tuo account
+
+2. **Crea account su Railway**
+   - Vai su [railway.app](https://railway.app)
+   - Registrati con GitHub (consigliato)
+
+3. **Crea nuovo progetto**
+   - Dashboard Railway → "New Project"
+   - Seleziona "Deploy from GitHub repo"
+   - Scegli il repository che hai appena forkato
+
+4. **Configura Environment Variables**
+   - Railway → Project → Variables
+   - Aggiungi queste variabili (⚠️ IMPORTANTE):
    ```
    TELEGRAM_BOT_TOKEN=il_tuo_token_da_BotFather
    OPENAI_API_KEY=sk-la_tua_key_openai
    TAVILY_API_KEY=tvly-la_tua_key_tavily
    ADMIN_USER_IDS=il_tuo_telegram_user_id
    ```
-5. **Deploy automatico** - Il bot si avvia automaticamente!
 
-**Nota**: Railway Hobby Plan costa $5/mese con $5 di crediti inclusi (sufficiente per uso base).
+5. **Deploy automatico**
+   - Railway rileva automaticamente `main.py` e installa dipendenze da `requirements.txt`
+   - Il bot si avvia automaticamente dopo pochi minuti!
+   - Controlla i log per verificare che sia partito correttamente
+
+**Limiti Railway Hobby Plan ($5/mese con $5 crediti inclusi):**
+- **RAM**: 512MB (sufficiente per 10-20 documenti PDF medi)
+- **CPU**: Condivisa (sufficiente per uso moderato)
+- **Storage**: Effimero (i documenti caricati potrebbero essere cancellati al redeploy - considera backup)
+- **Esecuzione**: $0.000231/min (circa $10/mese per 24/7, ma crediti inclusi coprono uso base)
+
+**Note tecniche:**
+- ✅ Il workaround per SQLite vecchio è già implementato in `config.py`
+- ✅ ChromaDB funziona out-of-the-box su Railway
+- ⚠️ I file in `data/` sono effimeri - considera backup periodici dei documenti
 
 [Guida dettagliata Railway →](README_SETUP_RAILWAY.md)
 
@@ -48,8 +77,8 @@ Bot Telegram intelligente con Retrieval-Augmented Generation (RAG), LangChain ag
 
 3. **Configura .env**:
    ```bash
-   cp .env.example .env
-   # Modifica .env con le tue API keys
+   # Modifica il file .env esistente con le tue API keys
+   # Aggiungi: TELEGRAM_BOT_TOKEN, ADMIN_USER_IDS, TAVILY_API_KEY
    ```
 
 4. **Avvia il bot**:
@@ -114,15 +143,20 @@ Bot Telegram intelligente con Retrieval-Augmented Generation (RAG), LangChain ag
 ## Struttura Progetto
 
 ```
-telegram-ai-bot/
+develhope_telegram_bot/
 ├── main.py                      # Entry point (esegui questo!)
 ├── config.py                    # Configurazione (MODIFICA QUI per sperimentare)
 ├── prompts.py                   # Prompt centralizzati (MODIFICA QUI per personalizzare)
-├── langchain_core.py            # CUORE DIDATTICO - LangChain + RAG + Agent
+├── bot_engine.py                # CUORE DIDATTICO - LangChain + RAG + Agent
+├── telegram_messages.py         # Messaggi predefiniti del bot
 │
 ├── requirements.txt             # Dipendenze Python
-├── .env.example                 # Template configurazione
+├── .env                         # API Keys (da compilare - gitignored)
 ├── .gitignore                   # File da ignorare in git
+│
+├── how_to_telegram/             # Guide PDF per setup Telegram
+│   ├── 1_Creazione_telegram_bot.pdf
+│   └── 2_ID_Utente.pdf
 │
 ├── src/
 │   ├── telegram/
@@ -143,7 +177,9 @@ telegram-ai-bot/
 │   └── utils/
 │       ├── logger.py            # Logging configurabile
 │       ├── helpers.py           # Utility functions
-│       └── conversation_manager.py # Gestione memoria
+│       ├── conversation_manager.py # Gestione memoria
+│       ├── intelligent_memory_manager.py # Memory management avanzato
+│       └── shared_clients.py    # Client condivisi (OpenAI, etc.)
 │
 └── data/                        # AUTO-GENERATO (gitignored)
     ├── vectordb/                # ChromaDB SQLite database
@@ -176,7 +212,7 @@ SYSTEM_PROMPT = """Sei un assistente..."""
 RAG_QUERY_PROMPT = """..."""
 ```
 
-### 3. Aggiungere Tools Custom (langchain_core.py)
+### 3. Aggiungere Tools Custom (bot_engine.py)
 
 Esempio: Aggiungere una calcolatrice
 
@@ -195,7 +231,7 @@ def _setup_tools(self):
     return tools
 ```
 
-Vedi **esercizi completi** in `langchain_core.py` (commenti finali)!
+Vedi **esercizi completi** in `bot_engine.py` (commenti finali)!
 
 ## Come Funziona (Architettura)
 
@@ -316,7 +352,7 @@ A: Su Railway Hobby Plan (0.5GB RAM): ~10-15 PDF medi. Per più documenti, consi
 - [ ] Usa diversi agent types (Conversational, Structured)
 - [ ] Implementa multi-agent system
 
-Vedi esercizi dettagliati in `langchain_core.py`!
+Vedi esercizi dettagliati in `bot_engine.py`!
 
 ## Risorse Utili
 

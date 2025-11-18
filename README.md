@@ -168,6 +168,51 @@ TTS_VOICE=alloy
 
 ---
 
+## ⚙️ Prerequisiti Sistema
+
+Prima di iniziare l'installazione, assicurati di avere questi requisiti:
+
+### 🐍 Python 3.11
+
+**Consigliato**: Python **3.11** (compatibile anche con 3.10 e 3.12, ma 3.11 è testato e stabile)
+
+**Verifica versione:**
+```bash
+python --version    # Windows
+python3 --version   # Mac/Linux
+```
+
+**Se non hai Python 3.11:**
+- **Windows**: Scarica da [python.org](https://www.python.org/downloads/)
+- **Mac**: `brew install python@3.11` (con Homebrew)
+- **Linux**: `sudo apt install python3.11` (Ubuntu/Debian)
+
+### 🔧 Microsoft C++ Build Tools (Solo Windows)
+
+**⚠️ IMPORTANTE per utenti Windows**: Alcune librerie (come ChromaDB) richiedono compilazione C++.
+
+**Installazione:**
+
+1. Scarica **Build Tools for Visual Studio** da:
+   [visualstudio.microsoft.com/downloads/](https://visualstudio.microsoft.com/downloads/)
+
+2. Scorri fino a "Tools for Visual Studio"
+
+3. Scarica **"Build Tools for Visual Studio 2022"** (circa 1.5GB)
+
+4. Durante l'installazione:
+   - Seleziona **"Desktop development with C++"**
+   - Assicurati che sia spuntato **"MSVC v143"** e **"Windows 10/11 SDK"**
+   - Clicca Installa (richiede 5-10 minuti)
+
+5. **Riavvia il computer** dopo l'installazione
+
+**Note:**
+- ✅ Su **Mac/Linux** non serve (compilatore già presente)
+- ⚠️ Senza Build Tools su Windows, vedrai errori durante `pip install`
+
+---
+
 ## 💻 Step 4: Crea Virtual Environment e Installa Librerie (3 min)
 
 ### 📂 Apri il Terminal in VSCode
@@ -185,7 +230,7 @@ Prova uno di questi comandi (dipende dal tuo sistema):
 | **Windows** | `python --version` o `py --version` |
 | **Mac/Linux** | `python3 --version` o `python --version` |
 
-✅ **Se vedi** `Python 3.11.x` o superiore, sei a posto!
+✅ **Se vedi** `Python 3.11.x`, perfetto! (compatibile anche 3.10-3.12)
 
 **Useremo il comando che ha funzionato** (es: `python`, `python3` o `py`)
 
@@ -706,19 +751,20 @@ develhope_telegram_bot/
 ├── 📱 telegram_messages.py          # Messaggi Telegram (benvenuto, errori, etc.)
 │
 ├── 📦 requirements.txt              # Lista librerie da installare
-├── 🔐 .env                          # ⭐ API Keys (da compilare)
-├── 📝 .env.example                  # Template per .env
+├── 🔐 .env                          # ⭐ API Keys (da compilare - gitignored)
 ├── 🚫 .gitignore                    # File ignorati da git
 │
 ├── 📂 src/                          # Codice sorgente modulare
 │   ├── telegram/                    # Bot Telegram
 │   │   ├── handlers.py              # Gestione comandi (/start, /add_doc, etc.)
 │   │   ├── auth.py                  # Controllo permessi admin
+│   │   ├── bot_setup.py             # Setup bot Telegram
 │   │   └── message_processor.py    # Processing messaggi utente
 │   │
 │   ├── rag/                         # Sistema RAG
 │   │   ├── vector_store.py          # ChromaDB (database vettoriale)
-│   │   └── document_processor.py   # Caricamento PDF/DOCX/TXT
+│   │   ├── document_processor.py   # Caricamento PDF/DOCX/TXT
+│   │   └── retriever.py             # Query e retrieval
 │   │
 │   ├── llm/                         # AI Models
 │   │   ├── audio.py                 # Text-to-Speech (OpenAI TTS)
@@ -726,13 +772,14 @@ develhope_telegram_bot/
 │   │
 │   └── utils/                       # Utility
 │       ├── logger.py                # Logging (salva log in file)
-│       └── helpers.py               # Funzioni helper
+│       ├── helpers.py               # Funzioni helper
+│       ├── conversation_manager.py  # Gestione memoria
+│       ├── intelligent_memory_manager.py # Memory management avanzato
+│       └── shared_clients.py        # Client condivisi (OpenAI, etc.)
 │
 ├── 📂 how_to_telegram/              # ⭐ GUIDE PDF
 │   ├── 1_Creazione_telegram_bot.pdf
 │   └── 2_ID_Utente.pdf
-│
-├── 📂 docs/                         # Documenti extra (programma corso, etc.)
 │
 └── 📂 data/                         # ⚠️ AUTO-GENERATO (non committare su git!)
     ├── vectordb/                    # Database ChromaDB
